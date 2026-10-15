@@ -1,0 +1,12 @@
+# Gate test: this job fails on purpose so the pipeline-failed trigger fires.
+# Set the CI/CD variable PROBE_PASS=1 (or edit below) to make it pass.
+stages: [test]
+
+leak_scan_placeholder:
+  stage: test
+  image: alpine:3.22
+  script:
+    - echo "Pretending to find a leaked key..."
+    - if [ "$PROBE_PASS" = "1" ]; then echo "pass"; exit 0; fi
+    - echo "Simulated finding: key fingerprint sha256:demo1234"
+    - exit 1
