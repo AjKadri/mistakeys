@@ -42,6 +42,7 @@ Last updated: 2026-10-16
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
 - VPS inspection then found `/opt/mistakeys/deploy/docker-compose.yml` was still an older copy with public-port defaults. The direct Compose render also lacked the derived `API_IMAGE`, `ROTATOR_IMAGE`, and `CONSUMER_IMAGE` variables that `deployctl.sh` supplies. Recopy the current deploy directory before starting anything.
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design.
+- The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. The Caddy formatter warning remains cosmetic; public application routing is still unverified until deployment.
 - GitLab Duo agent behavior and hackathon submission requirements.
 
 ## Working rule
