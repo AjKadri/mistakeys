@@ -1,0 +1,73 @@
+services:
+  api:
+    build: .
+    command: ["node", "dist/api.js"]
+    environment:
+      PORT: "3000"
+      REGISTRY_PATH: /data/registry.json
+    volumes:
+      - registry_data:/data
+    ports:
+      - "3000:3000"
+    networks:
+      - public
+      - internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  rotator:
+    build: .
+    command: ["node", "dist/rotator.js"]
+    environment:
+      PORT: "3002"
+      REGISTRY_PATH: /data/registry.json
+      AUDIT_LOG_PATH: /data/audit.jsonl
+      CONSUMER_KEY_PATH: /secrets/orders-api.key
+      ROTATOR_TOKEN: ${ROTATOR_TOKEN:?Copy .env.example to .env and set ROTATOR_TOKEN}
+      API_URL: http://api:3000
+      ROTATION_MAX_OVERLAP_SECONDS: "120"
+    volumes:
+      - registry_data:/data
+      - consumer_key:/secrets
+    networks:
+      - internal
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  consumer:
+    build: .
+    command: ["node", "dist/consumer.js"]
+    environment:
+      PORT: "3001"
+      API_URL: http://api:3000
+      CONSUMER_KEY_PATH: /secrets/orders-api.key
+      CONSUMER_POLL_SECONDS: "3"
+    volumes:
+      - consumer_key:/secrets
+    ports:
+      - "3001:3001"
+    networks:
+      - internal
+    depends_on:
+      api:
+        condition: service_healthy
+      rotator:
+        condition: service_healthy
+
+volumes:
+  registry_data:
+  consumer_key:
+
+networks:
+  public:
+  internal:
+    internal: true
