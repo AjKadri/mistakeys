@@ -10,10 +10,11 @@ Last updated: 2026-10-16
 - Added the TypeScript service implementation, typed rotator API, consumer worker, atomic registry and audit storage, Docker Compose topology, MIT license, and replacement GitLab CI verification job.
 - Added seven automated tests covering API authentication, pending and revoked states, secret non-disclosure, idempotent rotation, revoked-state protection, post-revoke failure escalation, overlap reporting, and consumer key rereads.
 - Verified `npm test`, `npm run typecheck`, `npm run build`, `docker compose config`, and dependency license metadata locally.
+- Fixed the Docker build output path and consumer network attachment found during Step 4. Compose now starts all services, the API and rotator are healthy, and the consumer status endpoint returns HTTP 200.
 
 ## Next
 
-- Run the Docker Compose end-to-end demo after Docker Hub access is available.
+- Run the remaining Docker Compose rotation demo: capture the seeded fingerprint, rotate, verify the old key returns 401, and verify the consumer continues returning 200.
 - Add GitLab Duo agent files in a later step.
 - Add VPS deployment and DNS instructions only after the local service demo is verified.
 
@@ -22,7 +23,7 @@ Last updated: 2026-10-16
 - Product scope and hackathon judging criteria for this project.
 - Application framework, runtime version, and dependency strategy.
 - GitLab CI runner availability and project CI/CD settings.
-- Docker image build and Compose runtime behavior. Docker Desktop is installed and running, but Docker Hub metadata for `node:22-alpine` timed out during verification.
+- Docker image build and Compose runtime behavior are now verified through Step 4. The complete rotation demo remains unverified.
 - VPS provider, operating system, access method, firewall, reverse proxy, HTTPS, and DNS.
 - Public deployment URL and any required secrets or environment variables.
 

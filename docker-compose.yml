@@ -57,6 +57,7 @@ services:
       - "3001:3001"
     networks:
       - internal
+      - public
     depends_on:
       api:
         condition: service_healthy
