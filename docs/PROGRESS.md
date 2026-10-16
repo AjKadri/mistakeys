@@ -29,8 +29,8 @@ Last updated: 2026-10-16
 ## Next
 
 - Add GitLab Duo agent files in a later step.
-- Copy the deployment kit to the VPS and run `setup.sh` as root. The target VPS has already partly run setup, but no application containers have been started.
-- Add the `mistakeys.ajkadri.dev` reverse proxy to the existing host Caddy and configure the VPS runtime registry credentials and tokens without sharing them in chat.
+- Deploy the first SHA-tagged image set after the GitLab pipeline succeeds. No application containers have been started.
+- Confirm the first public HTTPS request through the existing host Caddy after deployment.
 - Create the server registry pull token, rotator token, SSH key variables, and protected GitLab CI/CD variables locally in their approved locations.
 - Push a protected default-branch commit and verify the real GitLab pipeline, Container Registry, forced SSH deployment, public DNS, HTTPS certificate, and rollback.
 
@@ -38,10 +38,10 @@ Last updated: 2026-10-16
 
 - GitLab CI runner availability, the included template behavior in this project, Container Registry permissions, and the real pipeline result.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
-- VPS runtime credentials, the existing host Caddy route, loopback port 18080, public DNS, Caddy certificate issuance, public API, rotator rate limiting, deployment, and rollback.
+- Public DNS, Caddy certificate issuance, public API, rotator rate limiting, deployment, and rollback.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
 - VPS inspection then found `/opt/mistakeys/deploy/docker-compose.yml` was still an older copy with public-port defaults. The direct Compose render also lacked the derived `API_IMAGE`, `ROTATOR_IMAGE`, and `CONSUMER_IMAGE` variables that `deployctl.sh` supplies. Recopy the current deploy directory before starting anything.
-- The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design.
+- The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
 - The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. The Caddy formatter warning remains cosmetic; public application routing is still unverified until deployment.
 - The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns `current_sha=` and `previous_sha=`. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
 - GitLab Duo agent behavior and hackathon submission requirements.
