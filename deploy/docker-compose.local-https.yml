@@ -1,0 +1,18 @@
+services:
+  api:
+    build: ..
+    image: mistakeys-api:local
+
+  rotator:
+    build: ..
+    image: mistakeys-rotator:local
+
+  consumer:
+    build: ..
+    image: mistakeys-consumer:local
+
+  caddy:
+    build: ./caddy
+    image: mistakeys-caddy:local
+    environment:
+      SITE_ADDRESS: mistakeys.localhost

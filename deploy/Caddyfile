@@ -1,0 +1,22 @@
+{$SITE_ADDRESS} {
+  encode zstd gzip
+
+  handle_path /rotator/* {
+    rate_limit {
+      zone rotator {
+        key {http.request.remote.host}
+        events 30
+        window 1m
+      }
+    }
+
+    @rotator_authorized header Authorization "Bearer {$ROTATOR_TOKEN}"
+    handle @rotator_authorized {
+      reverse_proxy rotator:3002
+    }
+
+    respond 401
+  }
+
+  reverse_proxy api:3000
+}

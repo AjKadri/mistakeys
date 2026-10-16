@@ -1,0 +1,92 @@
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    command: ["node", "dist/api.js"]
+    environment:
+      PORT: "3000"
+      REGISTRY_PATH: /data/registry.json
+    volumes:
+      - registry_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rotator:
+    image: ${ROTATOR_IMAGE:?ROTATOR_IMAGE is required}
+    command: ["node", "dist/rotator.js"]
+    environment:
+      PORT: "3002"
+      REGISTRY_PATH: /data/registry.json
+      AUDIT_LOG_PATH: /data/audit.jsonl
+      CONSUMER_KEY_PATH: /secrets/orders-api.key
+      ROTATOR_TOKEN: ${ROTATOR_TOKEN:?ROTATOR_TOKEN is required}
+      API_URL: http://api:3000
+      ROTATION_MAX_OVERLAP_SECONDS: "120"
+    volumes:
+      - registry_data:/data
+      - consumer_key:/secrets
+    networks:
+      - internal
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  consumer:
+    image: ${CONSUMER_IMAGE:?CONSUMER_IMAGE is required}
+    command: ["node", "dist/consumer.js"]
+    environment:
+      PORT: "3001"
+      API_URL: http://api:3000
+      CONSUMER_KEY_PATH: /secrets/orders-api.key
+      CONSUMER_POLL_SECONDS: "3"
+    volumes:
+      - consumer_key:/secrets
+    networks:
+      - internal
+    depends_on:
+      api:
+        condition: service_healthy
+      rotator:
+        condition: service_healthy
+
+  caddy:
+    image: ${CADDY_IMAGE:-mistakeys-caddy:2.11.7-ratelimit}
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-mistakeys.ajkadri.dev}
+      ROTATOR_TOKEN: ${ROTATOR_TOKEN:?ROTATOR_TOKEN is required}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+      - internal
+    depends_on:
+      api:
+        condition: service_healthy
+      rotator:
+        condition: service_healthy
+
+volumes:
+  registry_data:
+  consumer_key:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge:
+  internal:
+    internal: true
