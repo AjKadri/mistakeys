@@ -8,11 +8,12 @@ The deploy SSH account has a forced command. Its authorized key can run only `de
 
 ## 1. Generate the deploy key on your Mac
 
-Run these commands on your Mac. The private key stays on your Mac and is never pasted into chat or committed.
+Run these commands on your Mac. The private key stays on your Mac and is never pasted into chat or committed. Use a separate CI-only key with an empty passphrase because the non-interactive GitLab job cannot answer an SSH passphrase prompt. The forced command limits what this key can do on the VPS.
 
 ```sh
-ssh-keygen -t ed25519 -f ~/.ssh/mistakeys-deploy -C mistakeys-gitlab-deploy
-chmod 600 ~/.ssh/mistakeys-deploy
+ssh-keygen -t ed25519 -f ~/.ssh/mistakeys-ci-deploy -C mistakeys-gitlab-deploy
+# Press Enter at both passphrase prompts to leave this restricted CI key empty.
+chmod 600 ~/.ssh/mistakeys-ci-deploy
 ```
 
 Set the VPS address for the commands below, using the IP or hostname you already use for root SSH:
@@ -28,8 +29,8 @@ Copy the public setup files and public key. This does not copy the private key.
 ```sh
 cd /Users/admin/Documents/Hackathons/mistakeys
 scp -r deploy root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-deploy
-scp ~/.ssh/mistakeys-deploy.pub root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-deploy.pub
-ssh root@"$MISTAKEYS_VPS_HOST" 'MISTAKEYS_DEPLOY_PUBLIC_KEY="$(cat /root/mistakeys-deploy.pub)" /root/mistakeys-deploy/setup.sh'
+scp ~/.ssh/mistakeys-ci-deploy.pub root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-ci-deploy.pub
+ssh root@"$MISTAKEYS_VPS_HOST" 'MISTAKEYS_DEPLOY_PUBLIC_KEY="$(cat /root/mistakeys-ci-deploy.pub)" /root/mistakeys-deploy/setup.sh'
 ```
 
 The script installs Docker from Docker's official Ubuntu repository, creates `mistakeys-deploy`, builds the pinned Caddy image, configures UFW for TCP ports 22, 80, and 443, and disables SSH password and keyboard-interactive authentication. It is safe to run again. It keeps an existing `/etc/mistakeys/runtime.env` unchanged.
@@ -72,7 +73,7 @@ Use a password manager or a local command to generate `ROTATOR_TOKEN`. Do not us
 The first status command uses the new key and does not open a shell:
 
 ```sh
-ssh -i ~/.ssh/mistakeys-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" status
+ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" status
 ```
 
 You should see Docker Compose service status plus `current_sha=` and `previous_sha=`. Before the first CI deployment, the SHA values may be empty.
@@ -80,8 +81,8 @@ You should see Docker Compose service status plus `current_sha=` and `previous_s
 These must be rejected:
 
 ```sh
-ssh -i ~/.ssh/mistakeys-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" 'uname -a'
-ssh -i ~/.ssh/mistakeys-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" 'deploy latest'
+ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" 'uname -a'
+ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" 'deploy latest'
 ```
 
 Both should print `unsupported deployment operation` and exit nonzero. The account must not provide an interactive shell.
@@ -103,7 +104,7 @@ Create these project variables. Select `Protect variable` for every row. Select 
 Use base64 so the masked values contain no newlines. Generate the values locally and paste them only into their GitLab variable fields:
 
 ```sh
-base64 < ~/.ssh/mistakeys-deploy | tr -d '\n'
+base64 < ~/.ssh/mistakeys-ci-deploy | tr -d '\n'
 ssh-keyscan -H "$MISTAKEYS_VPS_HOST" | base64 | tr -d '\n'
 ```
 
@@ -152,13 +153,13 @@ The response should contain state and fingerprints only. It must not contain `mk
 If a deployment is unhealthy, run this single command from your Mac:
 
 ```sh
-ssh -i ~/.ssh/mistakeys-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" rollback
+ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" rollback
 ```
 
 Then confirm the active and previous SHAs:
 
 ```sh
-ssh -i ~/.ssh/mistakeys-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" status
+ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" status
 ```
 
 ## 9. Host checks
