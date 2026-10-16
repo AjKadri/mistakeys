@@ -43,6 +43,7 @@ Last updated: 2026-10-16
 - VPS inspection then found `/opt/mistakeys/deploy/docker-compose.yml` was still an older copy with public-port defaults. The direct Compose render also lacked the derived `API_IMAGE`, `ROTATOR_IMAGE`, and `CONSUMER_IMAGE` variables that `deployctl.sh` supplies. Recopy the current deploy directory before starting anything.
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design.
 - The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. The Caddy formatter warning remains cosmetic; public application routing is still unverified until deployment.
+- The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns `current_sha=` and `previous_sha=`. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
 - GitLab Duo agent behavior and hackathon submission requirements.
 
 ## Working rule

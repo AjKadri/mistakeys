@@ -80,9 +80,15 @@ else
 fi
 
 if id "$deploy_user" >/dev/null 2>&1; then
-  unchanged "user $deploy_user"
+  user_shell=$(getent passwd "$deploy_user" | cut -d: -f7)
+  if [ "$user_shell" = '/bin/sh' ]; then
+    unchanged "user $deploy_user"
+  else
+    usermod --shell /bin/sh "$deploy_user"
+    changed "shell for $deploy_user set to /bin/sh for forced commands"
+  fi
 else
-  useradd --create-home --shell /usr/sbin/nologin "$deploy_user"
+  useradd --create-home --shell /bin/sh "$deploy_user"
   changed "user $deploy_user"
 fi
 
