@@ -1,8 +1,8 @@
 # Mistakeys VPS setup
 
-This kit deploys the three Mistakeys services on an Ubuntu 26.04 LTS VPS. Caddy is the only internet-facing application container. It terminates HTTPS for `mistakeys.ajkadri.dev`, proxies normal traffic to `api`, and proxies `/rotator/*` to the internal rotator only after bearer-token and rate-limit checks.
+This kit deploys the three Mistakeys services on an Ubuntu 26.04 LTS VPS that already has a host-level Caddy server. The existing Caddy keeps ownership of host ports 80 and 443 and terminates HTTPS for `mistakeys.ajkadri.dev`. The Mistakeys Caddy container binds only to `127.0.0.1:18080` and proxies normal traffic to `api`, plus `/rotator/*` to the internal rotator after bearer-token and rate-limit checks.
 
-The rotator has no published Docker port. Its external control path is `POST /rotator/v1/rotator/<operation>`. The Caddy route is deliberately narrow, requires the same `ROTATOR_TOKEN` as the rotator, and limits requests to 30 per source IP per minute. This gives the future agent a controlled HTTPS entry point while keeping the service off the public network. The token is still a secret and must only be stored in the VPS runtime file or a local environment variable.
+The rotator has no published Docker port. Its external control path is `POST /rotator/v1/rotator/<operation>`. The container Caddy route is deliberately narrow, requires the same `ROTATOR_TOKEN` as the rotator, and limits requests to 30 per source IP per minute. The host Caddy forwards only the public HTTPS site to the loopback port. This gives the future agent a controlled HTTPS entry point while keeping the rotator and application containers off the public network. The token is still a secret and must only be stored in the VPS runtime file or a local environment variable.
 
 The deploy SSH account has a forced command. Its authorized key can run only `deploy <40-hex-commit-sha>`, `rollback`, or `status`. It has no PTY, port forwarding, agent forwarding, X11 forwarding, or user startup file. The account has no login shell.
 
@@ -33,7 +33,7 @@ scp ~/.ssh/mistakeys-ci-deploy.pub root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-ci
 ssh root@"$MISTAKEYS_VPS_HOST" 'MISTAKEYS_DEPLOY_PUBLIC_KEY="$(cat /root/mistakeys-ci-deploy.pub)" /root/mistakeys-deploy/setup.sh'
 ```
 
-The script installs Docker from Docker's official Ubuntu repository, creates `mistakeys-deploy`, builds the pinned Caddy image, configures UFW for TCP ports 22, 80, and 443, and disables SSH password and keyboard-interactive authentication. It is safe to run again. It keeps an existing `/etc/mistakeys/runtime.env` unchanged.
+The script installs Docker from Docker's official Ubuntu repository, creates `mistakeys-deploy`, builds the pinned Caddy image, configures UFW for TCP ports 22, 80, and 443, and disables SSH password and keyboard-interactive authentication. It does not start the application and does not change the existing host Caddy. It is safe to run again. It keeps an existing `/etc/mistakeys/runtime.env` unchanged.
 
 If the script reports that the Docker apt repository has no package for the VPS codename, stop there and paste the complete error output. Do not replace the repository with an unverified installation method.
 
@@ -63,12 +63,40 @@ REGISTRY_IMAGE=registry.gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43
 REGISTRY_USER=the-deploy-token-username
 REGISTRY_PASSWORD=the-deploy-token-value
 ROTATOR_TOKEN=your-long-random-rotator-token
-SITE_ADDRESS=mistakeys.ajkadri.dev
+CADDY_BIND_ADDRESS=127.0.0.1
+HTTP_PORT=18080
+HTTPS_PORT=18443
+SITE_ADDRESS=:80
 ```
 
 Use a password manager or a local command to generate `ROTATOR_TOKEN`. Do not use the placeholder value. The file must remain owned by `root:mistakeys-deploy` with mode `0640`.
 
-## 4. Confirm the forced SSH account
+## 4. Add the loopback route to the existing host Caddy
+
+Do not stop or reconfigure the existing sites. Add this site block to the active host Caddy configuration, usually `/etc/caddy/Caddyfile`:
+
+```caddyfile
+mistakeys.ajkadri.dev {
+    reverse_proxy 127.0.0.1:18080
+}
+```
+
+If that hostname already has a site block, add the `reverse_proxy` directive there instead of creating a duplicate block. Validate and reload the existing service:
+
+```sh
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+If the existing Caddy runs in a container, use your VPS manager's equivalent config validation and reload. Do not replace the existing container. Before the first application deployment, confirm that port 18080 is unused:
+
+```sh
+ss -ltnp | grep -E ':(80|443|18080)\b'
+```
+
+After deployment, 80 and 443 should still belong to the existing host Caddy, while Docker should show `127.0.0.1:18080->80/tcp` for the Mistakeys Caddy container.
+
+## 5. Confirm the forced SSH account
 
 The first status command uses the new key and does not open a shell:
 
@@ -87,7 +115,7 @@ ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTA
 
 Both should print `unsupported deployment operation` and exit nonzero. The account must not provide an interactive shell.
 
-## 5. Create protected GitLab CI/CD variables
+## 6. Create protected GitLab CI/CD variables
 
 Open the project in GitLab, then select `Settings` > `CI/CD` > expand `Variables` > `Add variable`.
 
@@ -110,7 +138,7 @@ ssh-keyscan -H "$MISTAKEYS_VPS_HOST" | base64 | tr -d '\n'
 
 The build job uses GitLab's predefined `CI_REGISTRY_USER` and `CI_REGISTRY_PASSWORD`. Do not create another CI variable for those. The VPS deploy-token value is used only on the VPS to pull the commit-SHA images.
 
-## 6. Run the first pipeline deployment
+## 7. Run the first pipeline deployment
 
 Push the repository to the protected default branch, then open `Build` > `Pipelines` in GitLab. Open the pipeline and confirm these jobs appear:
 
@@ -123,7 +151,7 @@ Push the repository to the protected default branch, then open `Build` > `Pipeli
 
 The build job pushes `api:<commit-sha>`, `rotator:<commit-sha>`, and `consumer:<commit-sha>` to this project's GitLab Container Registry. The deploy job connects as `mistakeys-deploy` and promotes those images to the local `current` tag. The prior `current` tag is retained as `previous`.
 
-## 7. Check HTTPS and routing
+## 8. Check HTTPS and routing
 
 After `deploy_production` succeeds, run these commands locally:
 
@@ -132,7 +160,7 @@ curl -fsS https://mistakeys.ajkadri.dev/healthz
 curl -sS -o /dev/null -w 'orders_without_auth=%{http_code}\n' https://mistakeys.ajkadri.dev/v1/orders
 ```
 
-Expected results are a JSON health response and `orders_without_auth=401`. Caddy obtains and renews the public certificate automatically when DNS points at the VPS and ports 80 and 443 are reachable.
+Expected results are a JSON health response and `orders_without_auth=401`. The existing host Caddy obtains and renews the public certificate automatically when DNS points at the VPS and ports 80 and 443 are reachable.
 
 To check the protected rotator route, set the token only in your local shell from your password manager. Do not paste it into chat or save it in shell history:
 
@@ -148,7 +176,7 @@ unset MISTAKEYS_LOCAL_ROTATOR_TOKEN
 
 The response should contain state and fingerprints only. It must not contain `mk_live_` or a raw key. A request without the bearer header must return HTTP 401.
 
-## 8. Roll back
+## 9. Roll back
 
 If a deployment is unhealthy, run this single command from your Mac:
 
@@ -162,7 +190,7 @@ Then confirm the active and previous SHAs:
 ssh -i ~/.ssh/mistakeys-ci-deploy -o IdentitiesOnly=yes mistakeys-deploy@"$MISTAKEYS_VPS_HOST" status
 ```
 
-## 9. Host checks
+## 10. Host checks
 
 Run these on the VPS as root when you need to inspect the host. They must not show an SSH password-authentication path:
 
@@ -172,4 +200,4 @@ sshd -T | grep -E 'passwordauthentication|kbdinteractiveauthentication|challenge
 docker ps
 ```
 
-The expected firewall exposure is SSH 22, HTTP 80, and HTTPS 443. The rotator must not appear with a host port in `docker ps`.
+The expected firewall exposure is SSH 22, HTTP 80, and HTTPS 443. The existing host Caddy must own those public ports. The Mistakeys Caddy port must be loopback-only, and the rotator must not appear with a host port in `docker ps`.

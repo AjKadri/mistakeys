@@ -113,7 +113,10 @@ REGISTRY_IMAGE=registry.gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43
 REGISTRY_USER=replace-with-gitlab-deploy-token-username
 REGISTRY_PASSWORD=replace-with-gitlab-deploy-token
 ROTATOR_TOKEN=replace-with-a-long-random-rotator-token
-SITE_ADDRESS=mistakeys.ajkadri.dev
+CADDY_BIND_ADDRESS=127.0.0.1
+HTTP_PORT=18080
+HTTPS_PORT=18443
+SITE_ADDRESS=:80
 EOF
   say "edit $runtime_file before the first deployment; placeholders are not working credentials"
 fi
@@ -174,5 +177,7 @@ else
   changed "Caddy image $caddy_image"
 fi
 
-say 'setup complete; the rotator has no host port and is reachable only through Caddy /rotator/*'
-say "next: edit $runtime_file, then run ssh -i <deploy-key> $deploy_user@<host> status"
+say 'setup complete; the application was not started'
+say 'Mistakeys Caddy will bind to 127.0.0.1:18080; add the host Caddy reverse_proxy before deployment'
+say 'the rotator has no host port and is reachable only through Caddy /rotator/*'
+say "next: edit $runtime_file, configure the host Caddy route, then run ssh -i <deploy-key> $deploy_user@<host> status"

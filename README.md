@@ -12,7 +12,7 @@ The services and the GitLab.com CI/CD and VPS deployment kit are included. GitLa
 
 The registry stores key hashes and fingerprints, never raw keys. The raw key exists only in the consumer key file and transiently in the rotator process while it hands a replacement to that file.
 
-In production, Caddy is the only public application container. The API and consumer are on a private Docker network. The rotator has no published port and is reachable only through Caddy's `/rotator/*` path, which requires `ROTATOR_TOKEN` and is rate-limited to 30 requests per source IP per minute. This gives the future agent a narrow control-plane entry point without placing the rotator directly on the internet.
+In production on the target VPS, the existing host Caddy owns ports 80 and 443 and terminates public HTTPS. The Mistakeys Caddy container binds only to `127.0.0.1:18080`. The API and consumer are on a private Docker network. The rotator has no published port and is reachable only through the two Caddy layers at `/rotator/*`, which requires `ROTATOR_TOKEN` and is rate-limited to 30 requests per source IP per minute. This keeps the control plane off the public network without disrupting the VPS's other sites.
 
 ## Local run
 
