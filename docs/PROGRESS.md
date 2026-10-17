@@ -31,6 +31,7 @@ Last updated: 2026-10-16
 - User-provided GitLab evidence shows pipeline `#2957137523` for commit `de7b353` passed all six jobs: `secret_detection`, `test`, `mistakeys_leak_scan`, `mistakeys_leak_scan_fixture`, `build_images`, and `deploy_production`.
 - User-provided live checks returned HTTPS health `200`, unauthenticated orders `401`, unauthenticated rotator `401`, and consumer `last_result: 200` with fingerprint `sha256:529176425f23`.
 - The real CI build and deploy path and the first public service checks are verified. No raw key was used in the chat or HTTP responses shown here.
+- User-provided live rotation evidence shows `sha256:529176425f23` rotated to `sha256:87fd2bd64e9a` with overlap `0.023` seconds, new-key HTTP 200, old-key HTTP 401, and consumer HTTP 200 after the update. Repeating the same leaked fingerprint returned `already_handled` with the earlier result.
 
 ## Next
 
@@ -39,7 +40,7 @@ Last updated: 2026-10-16
 
 ## Still unverified
 
-- First live rotation, idempotence, deployed SHA confirmation, rate-limit behavior, and rollback.
+- Deployed SHA confirmation, audit-log timestamp inspection, rate-limit behavior, and rollback.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
