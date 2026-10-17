@@ -33,6 +33,7 @@ Last updated: 2026-10-16
 - The real CI build and deploy path and the first public service checks are verified. No raw key was used in the chat or HTTP responses shown here.
 - User-provided live rotation evidence shows `sha256:529176425f23` rotated to `sha256:87fd2bd64e9a` with overlap `0.023` seconds, new-key HTTP 200, old-key HTTP 401, and consumer HTTP 200 after the update. Repeating the same leaked fingerprint returned `already_handled` with the earlier result.
 - User-provided deploy status shows current SHA `de7b35361adfe7a50dec6727639f8da91debb66c`, API and rotator healthy, consumer running, and Caddy bound only to loopback ports `18080` and `18443`. `previous_sha` is empty because this is the first deployment.
+- User-provided second-deployment status shows current SHA `10e64530cf1d761fdbe1a0b3b0a7f808ecba1795` and previous SHA `de7b35361adfe7a50dec6727639f8da91debb66c`, with API and rotator healthy and the consumer running.
 
 ## Next
 
