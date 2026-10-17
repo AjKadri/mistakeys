@@ -26,22 +26,25 @@ Last updated: 2026-10-16
 - The loopback-safe Compose configuration parses locally. The local HTTPS rerun after this VPS adaptation passed: health HTTP 200, seeded consumer HTTP 200, old key HTTP 401 after rotation, and replacement consumer HTTP 200.
 - ShellCheck v0.10.0 passed again after the deployment adjustment, and the generated gitleaks fixture still failed safely with a fingerprint-only report.
 
+## Verified in GitLab and on the VPS
+
+- User-provided GitLab evidence shows pipeline `#2957137523` for commit `de7b353` passed all six jobs: `secret_detection`, `test`, `mistakeys_leak_scan`, `mistakeys_leak_scan_fixture`, `build_images`, and `deploy_production`.
+- User-provided live checks returned HTTPS health `200`, unauthenticated orders `401`, unauthenticated rotator `401`, and consumer `last_result: 200` with fingerprint `sha256:529176425f23`.
+- The real CI build and deploy path and the first public service checks are verified. No raw key was used in the chat or HTTP responses shown here.
+
 ## Next
 
 - Add GitLab Duo agent files in a later step.
-- Verify the deployed SHA, public DNS and HTTPS certificate, public API behavior, consumer status, rotator protection, and rollback.
+- Run the first live rotation, verify idempotence and consumer continuity, verify the deployed SHA, and test rollback.
 
 ## Still unverified
 
-- Public DNS, Caddy certificate issuance, public API, consumer status, rotator rate limiting, and rollback.
+- First live rotation, idempotence, deployed SHA confirmation, rate-limit behavior, and rollback.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
-- Public DNS, Caddy certificate issuance, public API, rotator rate limiting, deployment, and rollback.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
-- VPS inspection then found `/opt/mistakeys/deploy/docker-compose.yml` was still an older copy with public-port defaults. The direct Compose render also lacked the derived `API_IMAGE`, `ROTATOR_IMAGE`, and `CONSUMER_IMAGE` variables that `deployctl.sh` supplies. Recopy the current deploy directory before starting anything.
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
-- The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. The Caddy formatter warning remains cosmetic; public application routing is still unverified until deployment.
+- The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. Public HTTPS health and protected-route checks now pass. The Caddy formatter warning remains cosmetic.
 - The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns `current_sha=` and `previous_sha=`. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
-- User-provided GitLab evidence shows pipeline `#2957137523` for commit `de7b353` passed all six jobs: `secret_detection`, `test`, `mistakeys_leak_scan`, `mistakeys_leak_scan_fixture`, `build_images`, and `deploy_production`. The real CI build and deploy path is verified; live HTTPS and service behavior remain to be checked.
 - GitLab Duo agent behavior and hackathon submission requirements.
 
 ## Working rule
