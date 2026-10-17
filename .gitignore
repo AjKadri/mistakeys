@@ -2,8 +2,15 @@ node_modules/
 dist/
 .env
 .env.*
+*.env
 !.env.example
 !deploy/.env.local.example
 .runtime/
 *.log
 *.tmp
+
+# Runtime credential material and service state
+*.key
+*.pem
+registry.json
+audit.jsonl
