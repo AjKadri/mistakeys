@@ -36,15 +36,16 @@ Last updated: 2026-10-16
 - User-provided second-deployment status shows current SHA `10e64530cf1d761fdbe1a0b3b0a7f808ecba1795` and previous SHA `de7b35361adfe7a50dec6727639f8da91debb66c`, with API and rotator healthy and the consumer running.
 - User-provided rollback evidence shows the deployment returned to `de7b35361adfe7a50dec6727639f8da91debb66c`, retained `10e64530cf1d761fdbe1a0b3b0a7f808ecba1795` as `previous_sha`, kept API and rotator healthy, and preserved public HTTPS health `200`.
 - User-provided public rate-limit evidence returned 30 HTTP 401 responses followed by HTTP 429 on the 31st unauthenticated rotator request.
+- User-provided post-rollback consumer evidence returned `last_result: 200` with replacement fingerprint `sha256:87fd2bd64e9a`.
 
 ## Next
 
 - Add GitLab Duo agent files in a later step.
-- Confirm post-rollback consumer status, then push the final progress notes.
+- Confirm the final `cdae49e` pipeline result and add GitLab Duo agent files in a later step.
 
 ## Still unverified
 
-- Post-rollback consumer status and the final progress-note push.
+- The final `cdae49e` pipeline result and GitLab Duo agent behavior.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
