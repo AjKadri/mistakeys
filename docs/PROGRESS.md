@@ -32,20 +32,21 @@ Last updated: 2026-10-16
 - User-provided live checks returned HTTPS health `200`, unauthenticated orders `401`, unauthenticated rotator `401`, and consumer `last_result: 200` with fingerprint `sha256:529176425f23`.
 - The real CI build and deploy path and the first public service checks are verified. No raw key was used in the chat or HTTP responses shown here.
 - User-provided live rotation evidence shows `sha256:529176425f23` rotated to `sha256:87fd2bd64e9a` with overlap `0.023` seconds, new-key HTTP 200, old-key HTTP 401, and consumer HTTP 200 after the update. Repeating the same leaked fingerprint returned `already_handled` with the earlier result.
+- User-provided deploy status shows current SHA `de7b35361adfe7a50dec6727639f8da91debb66c`, API and rotator healthy, consumer running, and Caddy bound only to loopback ports `18080` and `18443`. `previous_sha` is empty because this is the first deployment.
 
 ## Next
 
 - Add GitLab Duo agent files in a later step.
-- Run the first live rotation, verify idempotence and consumer continuity, verify the deployed SHA, and test rollback.
+- Test rate limiting and rollback.
 
 ## Still unverified
 
-- Deployed SHA confirmation, audit-log timestamp inspection, rate-limit behavior, and rollback.
+- Rate-limit behavior and rollback.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
 - The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. Public HTTPS health and protected-route checks now pass. The Caddy formatter warning remains cosmetic.
-- The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns `current_sha=` and `previous_sha=`. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
+- The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns the deployed current SHA and empty `previous_sha`. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
 - GitLab Duo agent behavior and hackathon submission requirements.
 
 ## Working rule
