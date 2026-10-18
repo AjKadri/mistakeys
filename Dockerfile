@@ -10,8 +10,7 @@ RUN npm prune --omit=dev
 
 FROM node:22-alpine
 
-RUN apk add --no-cache su-exec \
-  && addgroup -S app \
+RUN addgroup -S app \
   && adduser -S -G app app
 
 WORKDIR /app

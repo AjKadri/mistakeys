@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-10-17
+Last updated: 2026-10-18
 
 ## Done
 
@@ -16,6 +16,7 @@ Last updated: 2026-10-17
 - Added [docs/SERVER_SETUP.md](SERVER_SETUP.md) with exact VPS, SSH key, GitLab variable, HTTPS, and rollback instructions.
 - Completed a pre-publication secret audit over the full reachable history of the locally available refs. Both default Gitleaks rules and the custom `mistakeys-application-key` rule found zero findings. No credential rotation or history rewrite is indicated by this audit.
 - Hardened `.gitignore` for runtime `.env` files, private key and certificate files, and registry or audit data files.
+- Removed the image build's `apk add su-exec` dependency after repeated GitLab shared-runner stalls at that step. The entrypoint now uses BusyBox `su` already present in `node:22-alpine` while retaining non-root execution and volume initialization.
 
 ## Verified locally in this milestone
 
@@ -30,6 +31,7 @@ Last updated: 2026-10-17
 - Gitleaks v8.30.1 scanned all 23 commits reachable from `main`, `origin/main`, and `origin/HEAD` with `--log-opts=--all`; default rules and the custom rule both exited 0 with zero findings. A separate complete-key search found zero `mk_live_[A-Za-z0-9]{32}` occurrences.
 - History checks found no private-key material, VPS IP, GitLab or API token prefixes, bearer literals, tracked runtime `.env` files, registry or audit data files, or raw key material. The only tracked environment files are `.env.example` and `deploy/.env.local.example`, both templates.
 - The root `LICENSE` is the MIT License. Runtime registry, audit, and consumer-key data are Docker volumes and are not repository files.
+- `npm test`, `npm run typecheck`, `npm run build`, and ShellCheck passed after the entrypoint change. A local Docker build completed successfully, and an image smoke test confirmed UID 100 execution, environment preservation, and writes to `/data` and `/secrets`.
 
 ## Verified in GitLab and on the VPS
 
@@ -51,6 +53,7 @@ Last updated: 2026-10-17
 ## Still unverified
 
 - GitLab Duo agent behavior and hackathon submission requirements.
+- The patched image has not yet completed a GitLab CI build or been deployed to the VPS. The prior CI retry stalled twice at the removed `apk add su-exec` step on the same shared runner.
 - GitLab server-side refs that are not present in the local clone. The audit covered every commit reachable from the locally available refs: `main`, `origin/main`, and `origin/HEAD`; no local tags or other branches were present.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
