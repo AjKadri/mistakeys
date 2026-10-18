@@ -17,6 +17,7 @@ Last updated: 2026-10-18
 - Completed a pre-publication secret audit over the full reachable history of the locally available refs. Both default Gitleaks rules and the custom `mistakeys-application-key` rule found zero findings. No credential rotation or history rewrite is indicated by this audit.
 - Hardened `.gitignore` for runtime `.env` files, private key and certificate files, and registry or audit data files.
 - Removed the image build's `apk add su-exec` dependency after repeated GitLab shared-runner stalls at that step. The entrypoint now uses BusyBox `su` already present in `node:22-alpine` while retaining non-root execution and volume initialization.
+- Added the reviewed-but-not-live-verified GitLab Duo recovery flow at [flows/mistakeys-recovery.yaml](../flows/mistakeys-recovery.yaml), the flow runner network policy at [`.gitlab/duo/agent-config.yml`](../.gitlab/duo/agent-config.yml), exact setup/test notes at [docs/FLOW_SETUP.md](FLOW_SETUP.md), and the local demo branch script at [scripts/demo-leak.sh](../scripts/demo-leak.sh).
 
 ## Verified locally in this milestone
 
@@ -50,7 +51,10 @@ Last updated: 2026-10-18
 
 ## Next
 
-- Add GitLab Duo agent files in a later step.
+- Validate the custom flow in GitLab AI > Flows and enable only the Pipeline events: Failed trigger.
+- Make `ROTATOR_TOKEN` available to the flow runner without putting it in the repository or chat.
+- Disable the old `test flow` trigger before running the first live test.
+- Run the cheapest non-leak failure test, then the registered-fingerprint demo and idempotence repeat.
 
 ## Still unverified
 
@@ -62,6 +66,8 @@ Last updated: 2026-10-18
 - The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
 - The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. Public HTTPS health and protected-route checks now pass. The Caddy formatter warning remains cosmetic.
 - The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns the deployed current and previous SHAs. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
+- The Duo custom-flow YAML registry validation, actual flow tool parameter schemas, service-account permissions, trigger payload shape in this project, runner reachability to `mistakeys.ajkadri.dev`, and flow-runner `ROTATOR_TOKEN` injection remain unverified. Current GitLab docs say custom project/group/instance CI/CD variables are not available to flow jobs, so the checked-in agent config fails closed unless the runner environment supplies `ROTATOR_TOKEN`.
+- `scripts/demo-leak.sh` intentionally reads the active key from a local Docker Compose rotator for a demo-only local stack. It does not obtain a production key from the public rotator and must not be used to claim that the live deployment and local demo registry share a fingerprint.
 
 ## Working rule
 

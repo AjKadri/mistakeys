@@ -2,7 +2,9 @@
 
 Mistakeys is an MIT-licensed credential rotation control plane for GitLab's Life After Code hackathon. It protects a demo orders API, rotates a leaked application key through typed operations, updates the consumer, verifies both sides, and records secret-free evidence.
 
-The services and the GitLab.com CI/CD and VPS deployment kit are included. GitLab Duo agent files are intentionally not included yet.
+The services, GitLab.com CI/CD and VPS deployment kit, and the GitLab Duo recovery flow are included.
+
+Follow [docs/FLOW_SETUP.md](docs/FLOW_SETUP.md) to add the flow to GitLab. The flow configuration is kept in [flows/mistakeys-recovery.yaml](flows/mistakeys-recovery.yaml) for review and copy/paste into GitLab AI > Flows.
 
 ## Services
 

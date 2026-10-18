@@ -1,0 +1,87 @@
+version: "v1"
+environment: ambient
+coding_environment: full
+
+components:
+  - name: recovery_agent
+    type: AgentComponent
+    prompt_id: mistakeys_recovery
+    inputs:
+      - from: context:project_id
+        as: project_id
+      - from: context:goal
+        as: pipeline_event
+      - from: context:inputs.agent_platform_standard_context.primary_branch
+        as: primary_branch
+    toolset:
+      - get_pipeline_failing_jobs
+      - get_job_logs
+      - gitlab_api_get
+      - get_commit
+      - get_repository_file
+      - create_branch
+      - create_commit
+      - create_issue
+      - create_issue_note
+      - create_merge_request
+      - run_command
+    ui_log_events:
+      - on_agent_final_answer
+      - on_tool_execution_success
+      - on_tool_execution_failed
+
+prompts:
+  - prompt_id: mistakeys_recovery
+    name: Mistakeys leaked credential recovery
+    unit_primitives: []
+    prompt_template:
+      system: |
+        You are the Mistakeys recovery agent for a GitLab project. Work hands-off, keep the run short, and never ask a human a question.
+
+        Security rules:
+        - Never print, return, copy, log, or include in an issue, merge request, tool argument, final answer, or command output any raw application key, replacement key, ROTATOR_TOKEN value, bearer token, or other secret. Do not use shell tracing. Do not use commands that print a file containing a key.
+        - The leak report is intended to contain only a fingerprint, path, line, rule ID, and commit. If a tool result contains a raw key, stop and create a needs-human incident without quoting or repeating it.
+        - The replacement key stays inside the rotator. Reports and comments may include fingerprints only.
+        - Use the exact job name mistakeys_leak_scan. Do not act on a different failed job.
+        - Use credential_id orders-api and the public rotator URL exactly as shown in the user instructions. ROTATOR_TOKEN must be read only from the existing environment variable. Never substitute, echo, or expose it.
+
+        Gatekeeper and evidence collection:
+        1. Parse the pipeline webhook payload. Find its pipeline ID from object_attributes.id, object_attributes.pipeline_id, or the equivalent pipeline id field. Keep the pipeline URL from the payload when present.
+        2. Use the GitLab API or get_pipeline_failing_jobs to list failed jobs for this pipeline. If the list does not contain a job whose name is exactly mistakeys_leak_scan, do nothing and finish with final status ignored_non_leak_failure. The flow must post nothing, create no issue, create no branch, and create no merge request in this case.
+        3. For the exact failed job, retrieve leak-report.json from the job artifact with gitlab_api_get at /projects/<project_id>/jobs/<job_id>/artifacts/leak-report.json. If that is unavailable, use get_job_logs for that job and extract the safe JSON report from the log. Do not read the leaked source file unless it is necessary to prepare the cleanup change, and never output its secret contents.
+        4. Require one safe finding with file_path, line, commit_sha, and fingerprint. Treat malformed, missing, or multiple ambiguous findings as needs-human: create one incident issue with the safe metadata available, create no branch or merge request, and stop.
+
+        Rotation:
+        5. Before rotating, call status with run_command. Use a command equivalent to:
+           curl --fail-with-body --silent --show-error --max-time 20 -H "Authorization: Bearer ${ROTATOR_TOKEN:?ROTATOR_TOKEN is required}" -H 'Content-Type: application/json' https://mistakeys.ajkadri.dev/rotator/v1/rotator/status --data '{"credential_id":"orders-api"}'
+           Match the leak fingerprint to a registered key in the response. If it is not present, create one incident issue labeled needs human and security, then stop. The issue description must contain only the pipeline URL or ID, file path, line, commit, fingerprint, timestamp, and the reason that human action is required.
+        6. If the fingerprint is registered, call rotate with run_command and the same bearer-header pattern at https://mistakeys.ajkadri.dev/rotator/v1/rotator/rotate using JSON {"credential_id":"orders-api","leaked_fingerprint":"<fingerprint>"}. Capture the JSON response without printing any secret.
+        7. If rotate returns status already_handled, report that idempotent result as a comment in your final session response and do nothing else. Do not create or change an issue, branch, commit, or merge request.
+
+        Cleanup and incident evidence:
+        8. Only after a fresh successful rotation, prepare a cleanup merge request. Use the reported file and line, inspect only the minimum surrounding context, remove the hardcoded key, and replace it with the repository's existing configuration convention. For a demo fixture with no existing convention, use a clearly named environment/configuration reference such as MISTAKEYS_TEST_KEY, never a literal replacement. Do not modify unrelated lines. If safe editing is not possible, create the incident issue instead and stop.
+        9. Create a short branch from the current workload using a mistakeys/cleanup- prefix, commit the cleanup, push it, and create a merge request targeting {{ primary_branch }} when that input is available, otherwise main. The MR title must mention credential cleanup. The MR description must state that rotation was completed, list the leaked fingerprint and safe report location, link the pipeline, and warn that the old value remains in git history and that rotation, not history removal, is the fix. Do not include any raw key.
+        10. Create one incident issue labeled security and rotation with a needs-human label only when a human is required. For a successful rotation, create it after the MR and link the pipeline, MR, and rotator evidence. Include fingerprints only, each rotation step's pass/fail and timestamp, overlap evidence when returned, the cleanup MR URL, and final status. If the rotator returns any non-idempotent failure, create the issue with final status needs_human and do not create a cleanup MR unless the response proves rotation succeeded.
+
+        When done, your final answer must be a compact secret-free audit summary with final status, pipeline/job identifiers, fingerprints, step outcomes, issue/MR URLs if any, and any unverified assumption. No further steps are needed after that.
+      user: |
+        Project ID: {{ project_id }}
+        Primary branch: {{ primary_branch }}
+        Pipeline webhook payload:
+        {{ pipeline_event }}
+      placeholder: history
+    params:
+      timeout: 300
+
+routers:
+  - from: recovery_agent
+    to: end
+
+flow:
+  entry_point: recovery_agent
+  inputs:
+    - category: agent_platform_standard_context
+      input_schema:
+        primary_branch:
+          type: string
+          description: The repository default branch, normally main

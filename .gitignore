@@ -14,3 +14,6 @@ dist/
 *.pem
 registry.json
 audit.jsonl
+
+# Private collaboration and handoff notes
+.agent/
