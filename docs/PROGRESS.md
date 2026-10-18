@@ -1,6 +1,6 @@
 # Project progress
 
-Last updated: 2026-10-18
+Last updated: 2026-10-19
 
 ## Done
 
@@ -21,6 +21,7 @@ Last updated: 2026-10-18
 - Replaced the flow's static-token setup check with a GitLab OIDC ID-token declaration, added cached JWKS-backed RS256 verification with configurable project-path validation, and kept the static bearer token for manual use.
 - Removed flow inputs and targeted `main` directly. Added local-JWKS tests for valid, wrong-audience, wrong-project, expired, and bad-signature tokens.
 - Added a non-internal egress network for the rotator's GitLab JWKS fetches, one-shot safe JWKS failure logging, and constant-time static-token comparison. API and consumer network memberships remain unchanged.
+- Hardened the CI leak gate so `mistakeys_leak_scan` fails on either a Gitleaks finding or a non-empty safe report, while still publishing the redacted report as an artifact.
 
 ## Verified locally in this milestone
 
@@ -37,9 +38,11 @@ Last updated: 2026-10-18
 - The root `LICENSE` is the MIT License. Runtime registry, audit, and consumer-key data are Docker volumes and are not repository files.
 - `npm test`, `npm run typecheck`, `npm run build`, and ShellCheck passed after the entrypoint change. A local Docker build completed successfully, and an image smoke test confirmed UID 100 execution, environment preservation, and writes to `/data` and `/secrets`.
 - The GitLab ID-token tests passed with a local JWKS server. The test suite currently reports 9 passing tests, including the one-shot JWKS failure callback, and `npm run typecheck` passes after the verifier change.
+- The native Gitleaks fixture returned status 1 with one fingerprint-only finding, the intentional demo tree returned status 1, and a clean `origin/main` tree returned status 0 with zero findings.
 
 ## Verified in GitLab and on the VPS
 
+- User-provided screenshot evidence shows pipeline `#2960959972` on `main` for commit `8c3bb489` passed in 2 minutes 58 seconds with all four visible stage checks green. This verifies the committed CI pipeline, not flow execution or live JWKS access.
 - User-provided GitLab evidence shows pipeline `#2957137523` for commit `de7b353` passed all six jobs: `secret_detection`, `test`, `mistakeys_leak_scan`, `mistakeys_leak_scan_fixture`, `build_images`, and `deploy_production`.
 - User-provided live checks returned HTTPS health `200`, unauthenticated orders `401`, unauthenticated rotator `401`, and consumer `last_result: 200` with fingerprint `sha256:529176425f23`.
 - The real CI build and deploy path and the first public service checks are verified. No raw key was used in the chat or HTTP responses shown here.

@@ -47,13 +47,9 @@ test:
 
 mistakeys_leak_scan:
   extends: .gitleaks
+  allow_failure: false
   script:
-    - set +e
     - ./scripts/run-gitleaks.sh leak-report.json .
-    - scan_status=$?
-    - set -e
-    - test -f leak-report.json
-    - exit "$scan_status"
   artifacts:
     when: always
     paths:
