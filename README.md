@@ -14,7 +14,7 @@ Follow [docs/FLOW_SETUP.md](docs/FLOW_SETUP.md) to add the flow to GitLab. The f
 
 The registry stores key hashes and fingerprints, never raw keys. The raw key exists only in the consumer key file and transiently in the rotator process while it hands a replacement to that file.
 
-In production on the target VPS, the existing host Caddy owns ports 80 and 443 and terminates public HTTPS. The Mistakeys Caddy container binds only to `127.0.0.1:18080`. The API and consumer are on a private Docker network. The rotator has no published port and is reachable only through the two Caddy layers at `/rotator/*`, which requires `ROTATOR_TOKEN` and is rate-limited to 30 requests per source IP per minute. This keeps the control plane off the public network without disrupting the VPS's other sites.
+In production on the target VPS, the existing host Caddy owns ports 80 and 443 and terminates public HTTPS. The Mistakeys Caddy container binds only to `127.0.0.1:18080`. The API and consumer remain on the private Docker network. The rotator has no published port, uses that internal network plus a separate outbound-only egress network for GitLab JWKS access, and is reachable only through the two Caddy layers at `/rotator/*`, which is rate-limited to 30 requests per source IP per minute. The rotator validates the static manual bearer token or GitLab OIDC ID token. This keeps the control plane off the public network without disrupting the VPS's other sites.
 
 ## Local run
 

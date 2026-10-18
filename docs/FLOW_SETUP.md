@@ -4,17 +4,16 @@ This document covers the project-specific setup for `flows/mistakeys-recovery.ya
 
 The flow is not locally executable. Local checks can validate the YAML and the shell script, but only GitLab can validate the custom-flow registry, the trigger payload, the available service-account permissions, the runner network policy, and the flow's environment variables.
 
-## 1. Commit and push the configuration
+## 1. Commit the configuration
 
 From the repository checkout:
 
 ```sh
-git add .gitignore README.md .gitlab/duo/agent-config.yml flows/mistakeys-recovery.yaml docs/FLOW_SETUP.md scripts/demo-leak.sh docs/PROGRESS.md
-git commit -m "feat: add Duo leaked credential recovery flow"
-git push origin main
+git add .env.example .gitlab/duo/agent-config.yml deploy/.env.local.example deploy/docker-compose.yml docker-compose.yml docs/FLOW_SETUP.md docs/PROGRESS.md docs/SERVER_SETUP.md flows/mistakeys-recovery.yaml package-lock.json package.json src/gitlab-id-token.ts src/rotator-app.ts src/rotator.ts test/gitlab-id-token.test.ts
+git commit -m "fix: authenticate recovery flow with GitLab ID token"
 ```
 
-The pipeline for this commit should run the existing test, leak scan, build, and deployment jobs. The new `.gitlab/duo/agent-config.yml` is read from the default branch for flow execution.
+Push only after the updated deploy kit has been copied to the VPS in section 5. The pipeline for this commit should run the existing test, leak scan, build, and deployment jobs. The new `.gitlab/duo/agent-config.yml` is read from the default branch for flow execution.
 
 ## 2. Create the flow in GitLab
 
@@ -41,23 +40,45 @@ The current custom-flow schema requires `version: "v1"`, `environment: ambient`,
 
 GitLab's current docs say pipeline triggers receive the full pipeline webhook payload as `context:goal`, and that triggers run only after a human action. The live test recorded in the project also showed an empty `builds` list, so the flow deliberately looks up failed jobs through GitLab tools.
 
-## 4. Make `ROTATOR_TOKEN` available to the flow
+## 4. Use the GitLab ID token
 
-Do not paste the token into chat, the repository, the flow YAML, an issue, or a merge request.
+No token setup is needed in GitLab CI/CD variables. `.gitlab/duo/agent-config.yml` declares an ID token named `MISTAKEYS_ID_TOKEN` with audience `https://mistakeys.ajkadri.dev`. The flow passes it as `Authorization: Bearer ${MISTAKEYS_ID_TOKEN}`. The rotator accepts that token after verifying GitLab's RS256 signature, issuer, audience, expiration, and exact `project_path`. `ROTATOR_TOKEN` remains available only for manual use.
 
-The flow calls the existing HTTPS proxy with `Authorization: Bearer $ROTATOR_TOKEN`. The checked-in agent config fails closed when that variable is absent and only allows outbound access to `mistakeys.ajkadri.dev`.
+Do not paste any token into chat, the repository, the flow YAML, an issue, or a merge request.
 
-There is an important current-platform caveat. GitLab's flow-execution documentation says custom project, group, and instance CI/CD variables are not available in flow jobs. It documents runner environment variables and `setup_script` as the supported ways to provide execution settings, but the exact secret-injection UI for GitLab-hosted flow runners was not verified here.
+GitLab documents ID tokens for flow jobs, but this project has not verified whether the `MISTAKEYS_ID_TOKEN` environment variable is visible to `run_command` inside the agent sandbox. The first cheap live test must check that without printing the token.
 
-Use this order:
+Use this first-test procedure:
 
-1. In the flow or trigger settings, look for a documented `Variables`, `Secrets`, or execution-environment field. If it exists, add `ROTATOR_TOKEN` there as a masked secret and verify that it is injected into the flow job without appearing in logs.
-2. If that setting does not exist, use a runner you control. Configure `ROTATOR_TOKEN` in the runner's service environment, or in the runner configuration's environment list, directly on the runner host. Do not commit the value. Restart the runner and confirm the flow job sees a non-empty variable without printing it.
-3. Do not assume that adding `ROTATOR_TOKEN` under `Settings` > `CI/CD` > `Variables` is sufficient. Current GitLab docs explicitly say custom CI/CD variables are unavailable to flow jobs. This is an unverified project setup assumption until a safe flow run confirms it.
+1. Trigger one controlled failed pipeline using an unregistered demo-only key in the exact job `mistakeys_leak_scan`.
+2. Watch the flow session. It must reach the rotator status request and receive either a normal status response or a controlled HTTP 401. A normal response for the unregistered fingerprint must create a needs-human incident with no rotation, branch, or merge request. A 401 or command failure must create a needs-human incident stating that rotator authentication was unavailable, without mentioning token contents, and create no branch or merge request.
+3. Never print, inspect, or paste the token. A successful status response proves visibility and authentication. A controlled 401 proves the command reached the rotator but the token was not accepted, so stop and diagnose before any rotation test.
 
 The existing public proxy is already configured at `https://mistakeys.ajkadri.dev`. The flow runner must be able to resolve and reach that hostname over HTTPS. The domain allowlist is checked into `.gitlab/duo/agent-config.yml`, but reachability from GitLab's actual runner cannot be verified from this workspace.
 
-## 5. Disable the old flow
+## 5. Redeploy before the flow test
+
+The rotator must run the code containing the GitLab ID-token verifier before the flow test.
+
+1. Commit the reviewed changes from section 1.
+2. Copy the updated public deploy kit to the VPS because the CI deploy job promotes images but does not copy the mounted Caddyfile:
+
+   ```sh
+   cd /Users/admin/Documents/Hackathons/mistakeys
+   scp -r deploy/. root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-deploy/
+   ```
+
+3. Push `main` after the copy completes:
+
+   ```sh
+   git push origin main
+   ```
+
+4. Wait for the `build_images` and `deploy_production` jobs on `main` to pass.
+5. Confirm the public health endpoint is healthy and manually confirm the existing static bearer path still works. Keep the manual token in a password manager or local shell only.
+6. Only after deployment succeeds, run the first cheap flow test from section 4.
+
+## 6. Disable the old flow
 
 After the new flow has been saved, go to `AI` > `Flows` and find the old flow named `test flow`.
 
@@ -67,7 +88,7 @@ After the new flow has been saved, go to `AI` > `Flows` and find the old flow na
 
 Do this before the first failed-pipeline test. The old flow is not changed by this repository commit, and its current GitLab UI state is not visible from this workspace.
 
-## 6. Cheapest test sequence
+## 7. Cheapest test sequence
 
 Run these tests in order and stop at the first failure:
 
@@ -79,10 +100,11 @@ Run these tests in order and stop at the first failure:
    ```
 
 2. In GitLab, save the flow and confirm it shows as valid. This costs no GitLab Credits.
-3. Trigger one failed pipeline where the failed job is not named `mistakeys_leak_scan`. Confirm one agent session starts, then confirm it creates no issue, branch, note, or merge request. This tests the gatekeeper at the lowest live cost. The earlier live test consumed 1.26 GitLab Credits, so budget about that amount for a simple session and measure the actual result in `AI` > `Sessions` or the Credits dashboard.
-4. Run a controlled leak-scan test with a demo-only key. Confirm the flow can retrieve `leak-report.json`, reach the public status endpoint, and recognize the fingerprint. If the fingerprint is not registered in the deployed rotator, the expected safe result is a `needs human` incident issue and no cleanup MR.
-5. Only after the previous checks pass, run the full demo script. Confirm the cleanup MR contains no raw key, the MR warns that git history still contains the old value, and the incident issue contains fingerprints and step timestamps only.
-6. Repeat the same failed pipeline or fingerprint only after the first run is complete. The expected rotator response is `already_handled`; the flow should report that result and make no second MR or issue.
+3. After the rotator redeploy, run the controlled `mistakeys_leak_scan` failure described in section 4. This is the first live test because it checks ID-token visibility inside `run_command` before any rotation.
+4. If that passes, trigger one failed pipeline where the failed job is not named `mistakeys_leak_scan`. Confirm one agent session starts, then confirm it creates no issue, branch, note, or merge request. This tests the gatekeeper at the lowest live cost. The earlier live test consumed 1.26 GitLab Credits, so budget about that amount for a simple session and measure the actual result in `AI` > `Sessions` or the Credits dashboard.
+5. Run a controlled leak-scan test with a demo-only key. Confirm the flow can retrieve `leak-report.json`, reach the public status endpoint, and recognize the fingerprint. If the fingerprint is not registered in the deployed rotator, the expected safe result is a `needs human` incident issue and no cleanup MR.
+6. Only after the previous checks pass, run the full demo script. Confirm the cleanup MR contains no raw key, the MR warns that git history still contains the old value, and the incident issue contains fingerprints and step timestamps only.
+7. Repeat the same failed pipeline or fingerprint only after the first run is complete. The expected rotator response is `already_handled`; the flow should report that result and make no second MR or issue.
 
 ## What remains unverified
 
@@ -90,7 +112,7 @@ Run these tests in order and stop at the first failure:
 - The project has not verified that the checked-in custom flow passes the live GitLab registry validator.
 - The available tool names are documented by GitLab as `get_pipeline_failing_jobs`, `get_job_logs`, `gitlab_api_get`, `create_issue`, `create_merge_request`, and `run_command`, but their exact runtime parameter schemas and permissions are not locally testable.
 - Current docs say pipeline event goals receive the full webhook payload, but the exact payload shape for this project must be confirmed from the first session.
-- Current docs say custom CI/CD variables are unavailable to flow jobs. How to inject `ROTATOR_TOKEN` into a GitLab-hosted flow runner remains unverified. The flow therefore fails closed if the variable is missing.
+- Whether GitLab exposes `MISTAKEYS_ID_TOKEN` to `run_command` inside the agent sandbox remains unverified. The first exact `mistakeys_leak_scan` test checks this before any rotation attempt.
 - The network policy allows only `mistakeys.ajkadri.dev`, but runner DNS, TLS, and outbound reachability must be tested in GitLab.
 - Service-account permissions, issue/MR creation permissions, and the required composite identity setup must be tested in GitLab.
 - The cleanup editor is instructed to preserve repository conventions. Its exact replacement may require a human review before merging.

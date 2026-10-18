@@ -1,7 +1,8 @@
 # Mistakeys flow execution policy.
 # The recovery flow's only third-party destination is the existing HTTPS proxy.
-setup_script:
-  - 'test -n "${ROTATOR_TOKEN:-}" || { echo "ROTATOR_TOKEN is required in the flow runner environment" >&2; exit 78; }'
+id_tokens:
+  MISTAKEYS_ID_TOKEN:
+    aud: https://mistakeys.ajkadri.dev
 
 network_policy:
   allowed_domains:

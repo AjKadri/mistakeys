@@ -10,12 +10,7 @@
       }
     }
 
-    @rotator_authorized header Authorization "Bearer {$ROTATOR_TOKEN}"
-    handle @rotator_authorized {
-      reverse_proxy rotator:3002
-    }
-
-    respond 401
+    reverse_proxy rotator:3002
   }
 
   reverse_proxy api:3000

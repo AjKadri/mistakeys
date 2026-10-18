@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { createGitLabIdTokenVerifier, isAuthorizedBearer, type GitLabIdTokenVerifier } from './gitlab-id-token.js';
 import { safeErrorMessage } from './shared/files.js';
 import { RotatorOperationError, RotatorService } from './rotator-service.js';
 
 interface RotatorAppOptions {
   service: RotatorService;
-  token: string;
+  token?: string;
+  idTokenVerifier?: GitLabIdTokenVerifier;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -29,12 +31,15 @@ function statusFor(error: unknown): 400 | 404 | 409 | 500 | 503 {
 
 export function createRotatorApp(options: RotatorAppOptions): Hono {
   const app = new Hono();
+  const idTokenVerifier = options.idTokenVerifier ?? createGitLabIdTokenVerifier();
 
   app.get('/healthz', (c) => c.json({ status: 'ok' }));
 
   app.post('/v1/rotator/*', async (c) => {
     const authorization = c.req.header('Authorization') ?? '';
-    if (authorization !== `Bearer ${options.token}`) return c.json({ error: 'unauthorized' }, 401);
+    if (!(await isAuthorizedBearer(authorization, options.token, idTokenVerifier))) {
+      return c.json({ error: 'unauthorized' }, 401);
+    }
 
     try {
       const body = await readBody(c);

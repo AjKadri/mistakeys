@@ -24,6 +24,7 @@ services:
       AUDIT_LOG_PATH: /data/audit.jsonl
       CONSUMER_KEY_PATH: /secrets/orders-api.key
       ROTATOR_TOKEN: ${ROTATOR_TOKEN:?ROTATOR_TOKEN is required}
+      GITLAB_PROJECT_PATH: ${GITLAB_PROJECT_PATH:-gitlab-ai-hackathon/transcend-october-2026/43339651/showcase}
       API_URL: http://api:3000
       ROTATION_MAX_OVERLAP_SECONDS: "120"
     volumes:
@@ -31,6 +32,7 @@ services:
       - consumer_key:/secrets
     networks:
       - internal
+      - egress
     depends_on:
       api:
         condition: service_healthy
@@ -62,7 +64,6 @@ services:
     image: ${CADDY_IMAGE:-mistakeys-caddy:2.11.7-ratelimit}
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
-      ROTATOR_TOKEN: ${ROTATOR_TOKEN:?ROTATOR_TOKEN is required}
     ports:
       - "${CADDY_BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-18080}:80"
       - "${CADDY_BIND_ADDRESS:-127.0.0.1}:${HTTPS_PORT:-18443}:443"
@@ -90,3 +91,4 @@ networks:
   edge:
   internal:
     internal: true
+  egress:

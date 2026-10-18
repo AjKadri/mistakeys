@@ -2,7 +2,7 @@
 
 This kit deploys the three Mistakeys services on an Ubuntu 26.04 LTS VPS that already has a host-level Caddy server. The existing Caddy keeps ownership of host ports 80 and 443 and terminates HTTPS for `mistakeys.ajkadri.dev`. The Mistakeys Caddy container binds only to `127.0.0.1:18080` and proxies normal traffic to `api`, plus `/rotator/*` to the internal rotator after bearer-token and rate-limit checks.
 
-The rotator has no published Docker port. Its external control path is `POST /rotator/v1/rotator/<operation>`. The container Caddy route is deliberately narrow, requires the same `ROTATOR_TOKEN` as the rotator, and limits requests to 30 per source IP per minute. The host Caddy forwards only the public HTTPS site to the loopback port. This gives the future agent a controlled HTTPS entry point while keeping the rotator and application containers off the public network. The token is still a secret and must only be stored in the VPS runtime file or a local environment variable.
+The rotator has no published Docker port. Its external control path is `POST /rotator/v1/rotator/<operation>`. The container Caddy route is deliberately narrow and limits requests to 30 per source IP per minute. Authentication is enforced by the rotator, which accepts the static `ROTATOR_TOKEN` for manual use or a verified GitLab OIDC ID token for the flow. The rotator joins the internal application network and a separate non-internal egress network used only for outbound GitLab JWKS access. The host Caddy forwards only the public HTTPS site to the loopback port. This gives the future agent a controlled HTTPS entry point while keeping the rotator and application containers off the public network. Static tokens are secrets and must only be stored in the VPS runtime file or a local environment variable.
 
 The deploy SSH account has a forced command. Its authorized key can run only `deploy <40-hex-commit-sha>`, `rollback`, or `status`. It has no PTY, port forwarding, agent forwarding, X11 forwarding, or user startup file. The account has no login shell.
 
@@ -63,13 +63,14 @@ REGISTRY_IMAGE=registry.gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43
 REGISTRY_USER=the-deploy-token-username
 REGISTRY_PASSWORD=the-deploy-token-value
 ROTATOR_TOKEN=your-long-random-rotator-token
+GITLAB_PROJECT_PATH=gitlab-ai-hackathon/transcend-october-2026/43339651/showcase
 CADDY_BIND_ADDRESS=127.0.0.1
 HTTP_PORT=18080
 HTTPS_PORT=18443
 SITE_ADDRESS=:80
 ```
 
-Use a password manager or a local command to generate `ROTATOR_TOKEN`. Do not use the placeholder value. The file must remain owned by `root:mistakeys-deploy` with mode `0640`.
+Use a password manager or a local command to generate `ROTATOR_TOKEN`. Do not use the placeholder value. `GITLAB_PROJECT_PATH` documents the OIDC verifier's expected project and may be left at its default. The file must remain owned by `root:mistakeys-deploy` with mode `0640`.
 
 ## 4. Add the loopback route to the existing host Caddy
 
@@ -200,4 +201,4 @@ sshd -T | grep -E 'passwordauthentication|kbdinteractiveauthentication|challenge
 docker ps
 ```
 
-The expected firewall exposure is SSH 22, HTTP 80, and HTTPS 443. The existing host Caddy must own those public ports. The Mistakeys Caddy port must be loopback-only, and the rotator must not appear with a host port in `docker ps`.
+The expected firewall exposure is SSH 22, HTTP 80, and HTTPS 443. The existing host Caddy must own those public ports. The Mistakeys Caddy port must be loopback-only, and the rotator must not appear with a host port in `docker ps`. The rotator must reject an invalid bearer token with HTTP 401.
