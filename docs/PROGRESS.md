@@ -45,6 +45,7 @@ Last updated: 2026-10-18
 - User-provided public rate-limit evidence returned 30 HTTP 401 responses followed by HTTP 429 on the 31st unauthenticated rotator request.
 - User-provided post-rollback consumer evidence returned `last_result: 200` with replacement fingerprint `sha256:87fd2bd64e9a`.
 - User-provided GitLab evidence shows final pipeline `#295721880` for commit `4a03f3e2` passed all stage jobs, including the deployment job.
+- User-provided GitLab evidence shows pipeline `#2960839313` for commit `4be7a65` passed all stages in 2 minutes 43 seconds after replacing the stalled `su-exec` package install. The image build and deployment jobs passed.
 
 ## Next
 
@@ -53,7 +54,7 @@ Last updated: 2026-10-18
 ## Still unverified
 
 - GitLab Duo agent behavior and hackathon submission requirements.
-- The patched image has not yet completed a GitLab CI build or been deployed to the VPS. The prior CI retry stalled twice at the removed `apk add su-exec` step on the same shared runner.
+- The patched image's post-deployment public health, consumer status, and VPS container status have not yet been rechecked after pipeline `#2960839313`.
 - GitLab server-side refs that are not present in the local clone. The audit covered every commit reachable from the locally available refs: `main`, `origin/main`, and `origin/HEAD`; no local tags or other branches were present.
 - Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
 - The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
