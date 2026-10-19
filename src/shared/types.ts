@@ -6,6 +6,7 @@ export type RotationStepName =
   | 'issue_replacement'
   | 'update_consumer'
   | 'verify_new_works'
+  | 'activate_replacement'
   | 'revoke_old_key'
   | 'verify_old_rejected';
 

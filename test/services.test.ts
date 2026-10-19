@@ -151,9 +151,10 @@ describe('rotator operations', () => {
     const first = await json<RotationResult>(firstResponse);
     equal(first.status, 'success');
     equal(first.failed_step, undefined);
-    equal(first.steps.map((step) => step.step).join(','), 'issue_replacement,update_consumer,verify_new_works,revoke_old_key,verify_old_rejected');
+    equal(first.steps.map((step) => step.step).join(','), 'issue_replacement,update_consumer,verify_new_works,activate_replacement,revoke_old_key,verify_old_rejected');
     match(first.new_fingerprint ?? '', /^sha256:[0-9a-f]{12}$/);
     equal(JSON.stringify(first).includes('mk_live_'), false);
+    equal((await ctx.service.status('orders-api')).keys.find((key) => key.fingerprint === first.new_fingerprint)?.state, 'active');
 
     const newRawKey = (await readFile(ctx.consumerKeyPath, 'utf8')).trim();
     equal(fingerprintForKey(newRawKey), first.new_fingerprint);

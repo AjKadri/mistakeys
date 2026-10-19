@@ -241,6 +241,7 @@ export class RotatorService {
       });
       await runStep('update_consumer', () => this.updateConsumer(credentialId, newFingerprint!));
       await runStep('verify_new_works', () => this.verifyNewWorks(credentialId));
+      await runStep('activate_replacement', () => this.activateReplacement(credentialId, newFingerprint!));
       overlapSeconds = (this.now().getTime() - issuedAt) / 1000;
       overlapExceeded = overlapSeconds >= this.options.maxOverlapSeconds;
       await runStep('revoke_old_key', () => this.revokeOldKey(credentialId, leakedFingerprint));
