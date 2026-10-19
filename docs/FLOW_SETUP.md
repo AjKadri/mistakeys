@@ -93,8 +93,13 @@ The script writes the key to a demo-only branch so the leak scanner produces a r
 Before the live demo, set the flag directly on the VPS and verify that the deploy key is available to the local `ssh` command:
 
 ```sh
-ssh -t -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'vi /etc/mistakeys/runtime.env'
-# Set MISTAKEYS_DEMO_MODE=1. Keep it out of Git and chat.
+ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" \
+  'if grep -q "^MISTAKEYS_DEMO_MODE=" /etc/mistakeys/runtime.env; then
+     sed -i "s/^MISTAKEYS_DEMO_MODE=.*/MISTAKEYS_DEMO_MODE=1/" /etc/mistakeys/runtime.env
+   else
+     printf "\\nMISTAKEYS_DEMO_MODE=1\\n" >> /etc/mistakeys/runtime.env
+   fi'
+ssh-add ~/.ssh/mistakeys-ci-deploy
 ./scripts/demo-leak.sh
 ```
 

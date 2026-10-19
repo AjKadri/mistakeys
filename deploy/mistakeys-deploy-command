@@ -3,7 +3,6 @@ set -eu
 
 original_command=${SSH_ORIGINAL_COMMAND:-}
 deployctl=/opt/mistakeys/deploy/deployctl.sh
-compose_file=/opt/mistakeys/deploy/docker-compose.yml
 runtime_file=/etc/mistakeys/runtime.env
 
 refuse_demo_key() {
@@ -16,7 +15,12 @@ if [ "$original_command" = 'demo-key' ]; then
   demo_mode=$(awk -F= '$1 == "MISTAKEYS_DEMO_MODE" { print $2; exit }' "$runtime_file")
   [ "$demo_mode" = '1' ] || refuse_demo_key
 
-  key=$(docker compose --env-file "$runtime_file" -f "$compose_file" exec -T consumer sh -c 'cat "$CONSUMER_KEY_PATH"') || refuse_demo_key
+  consumer_ids=$(docker ps \
+    --filter label=com.docker.compose.project=deploy \
+    --filter label=com.docker.compose.service=consumer \
+    --format '{{.ID}}') || refuse_demo_key
+  consumer_id=$(printf '%s\n' "$consumer_ids" | awk 'NF { count += 1; value = $0 } END { if (count == 1) print value; else exit 1 }') || refuse_demo_key
+  key=$(docker exec "$consumer_id" sh -c 'cat "$CONSUMER_KEY_PATH"') || refuse_demo_key
   case "$key" in
     mk_live_????????????????????????????????) ;;
     *) refuse_demo_key ;;

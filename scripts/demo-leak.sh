@@ -21,7 +21,6 @@ cd "$repo_root"
 : "${MISTAKEYS_VPS_HOST:?MISTAKEYS_VPS_HOST is required}"
 
 git fetch "$remote" main >/dev/null 2>&1
-git switch -c "$branch" "$remote/main" >/dev/null 2>&1
 
 key=$(ssh "mistakeys-deploy@$MISTAKEYS_VPS_HOST" demo-key)
 case "$key" in
@@ -33,6 +32,8 @@ case "$key" in
 esac
 
 fingerprint=$(printf '%s' "$key" | shasum -a 256 | awk '{print "sha256:" substr($1, 1, 12)}')
+
+git switch -c "$branch" "$remote/main" >/dev/null 2>&1
 
 mkdir -p "$(dirname "$demo_file")"
 umask 077
