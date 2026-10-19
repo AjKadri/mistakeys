@@ -1,91 +1,91 @@
 # Mistakeys
 
-Mistakeys is an MIT-licensed credential rotation control plane for GitLab's Life After Code hackathon. It protects a demo orders API, rotates a leaked application key through typed operations, updates the consumer, verifies both sides, and records secret-free evidence.
+Mistakeys: a hands-off GitLab Duo agent that turns a leaked application credential into a verified rotation, deployment update and cleanup merge request.
 
-The services, GitLab.com CI/CD and VPS deployment kit, and the GitLab Duo recovery flow are included.
+## The problem
 
-Follow [docs/FLOW_SETUP.md](docs/FLOW_SETUP.md) to add the flow to GitLab. The flow configuration is kept in [flows/mistakeys-recovery.yaml](flows/mistakeys-recovery.yaml) for review and copy/paste into GitLab AI > Flows.
+Small teams without a security engineer need a safe response to leaked application credentials. Detection alone leaves a live credential in circulation and makes the next steps easy to get wrong.
 
-## Services
+[GitGuardian's State of Secrets Sprawl 2026](https://www.gitguardian.com/state-of-secrets-sprawl-report-2026) found that 64% of secrets that were valid in 2022 were still active and exploitable four years later. GitGuardian also reported [28.65 million new hardcoded secrets in public GitHub commits in 2025](https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/).
 
-- `api` exposes `GET /healthz` and authenticated `GET /v1/orders`.
-- `rotator` is internal-only and accepts typed, bearer-authenticated rotation operations.
-- `consumer` reads its key file on every request to the API and exposes `GET /status`.
+## How it works
 
-The registry stores key hashes and fingerprints, never raw keys. The raw key exists only in the consumer key file and transiently in the rotator process while it hands a replacement to that file.
+```mermaid
+flowchart LR
+    A[Push] --> B[mistakeys_leak_scan fails]
+    B --> C[GitLab Duo recovery flow]
+    C --> D[Gatekeeper checks exact failed job and safe report]
+    D -->|GitLab ID token| E[Rotator verifies OIDC and runs typed operations]
+    E --> F[Issue replacement and update consumer]
+    F --> G[Verify consumer HTTP 200]
+    G --> H[Activate replacement and revoke old key]
+    H --> I[Verify old key HTTP 401]
+    I --> J[Cleanup MR and incident issue]
+```
 
-In production on the target VPS, the existing host Caddy owns ports 80 and 443 and terminates public HTTPS. The Mistakeys Caddy container binds only to `127.0.0.1:18080`. The API and consumer remain on the private Docker network. The rotator has no published port, uses that internal network plus a separate outbound-only egress network for GitLab JWKS access, and is reachable only through the two Caddy layers at `/rotator/*`, which is rate-limited to 30 requests per source IP per minute. The rotator validates the static manual bearer token or GitLab OIDC ID token. This keeps the control plane off the public network without disrupting the VPS's other sites.
+The agent can read the intentionally leaked file and the redacted leak report. It never prints or puts the raw credential in an issue, session, merge request, or flow result.
 
-## Local run
+## Proof it works
 
-Requirements: Node 22, npm, and Docker Compose.
+All evidence below uses fingerprints only.
+
+- [OIDC and JWKS authentication session 9658871](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/automate/agent-sessions/9658871) reached the rotator and safely stopped on an unregistered fingerprint.
+- [Gatekeeper session 9665909](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/automate/agent-sessions/9665909) ignored a different failed job without creating recovery artifacts.
+- [Successful live rotation session 9677029](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/automate/agent-sessions/9677029) and [pipeline 2962697953](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/pipelines/2962697953) changed `sha256:87fd2bd64e9a` to `sha256:93a444b2e0f8`. The consumer stayed at HTTP 200, the old key returned HTTP 401, and the measured overlap was `0.021` seconds.
+- The same session produced [cleanup MR !1](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/merge_requests/1) and [incident issue #9](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/work_items/9). Close the MR after evidence capture. Do not merge it because its branch contains the intentional demo leak.
+- [Idempotent repeat session 9677770](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/automate/agent-sessions/9677770) and [pipeline 2962758043](https://gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43339651/showcase/-/pipelines/2962758043) returned `already_handled` without creating another issue, branch, commit, or merge request.
+
+## DevSecOps stages touched
+
+| Stage | What Mistakeys does |
+| --- | --- |
+| Plan | Defines the exact failed-job gate, typed recovery steps, bounded overlap, and human escalation path. |
+| Create | Creates a replacement credential, updates the running consumer, and opens cleanup evidence. |
+| Verify | Checks the replacement with HTTP 200, the revoked key with HTTP 401, fingerprints, overlap, and idempotence. |
+| Package | Builds API, consumer, rotator, and Caddy images tagged by commit SHA. |
+| Secure | Runs Gitleaks and Secret Detection, uses OIDC plus JWKS, redacts reports, and keeps the rotator unpublished. |
+| Release | Deploys protected main-branch images with health checks and a previous-image rollback tag. |
+| Configure | Uses protected CI variables, a VPS runtime file, Caddy routing, and a GitLab flow trigger. |
+| Monitor | Records audit steps, fingerprints, overlap, consumer status, and incident evidence. |
+| Govern | Uses a fail-closed gatekeeper, needs-human outcomes, issue/MR evidence, and a close-only demo-branch policy. |
+
+## Security design
+
+- Rotator endpoints expose typed operations rather than general credential-management commands.
+- The agent has no long-lived rotator secret. It uses a short-lived GitLab OIDC ID token. The rotator verifies the issuer, audience, project path, expiration, RS256 signature, and cached GitLab JWKS. A static bearer token remains available for manual use only.
+- Reports and agent output contain fingerprints, file metadata, rule IDs, and commit IDs, never raw keys. The replacement key stays on the VPS while the consumer is updated.
+- Rotation is replacement-first: issue, update, verify, activate, revoke, and verify rejection. Revoked keys cannot return to active or pending state.
+- Repeated handling is idempotent, and the old/new overlap is measured against a configured bound.
+- The agent is allowed to read the leaked file because recovery requires the old credential, but the flow limits where that value can go and never reports it.
+
+## Try it
+
+Live deployment: [mistakeys.ajkadri.dev](https://mistakeys.ajkadri.dev)
+
+From a checkout with Node 22, npm, and Docker Compose:
 
 ```sh
 cp .env.example .env
-# Edit .env and replace the placeholder ROTATOR_TOKEN with a local value.
+# Replace the local placeholder ROTATOR_TOKEN in .env.
 npm install
 npm test
 npm run typecheck
 npm run build
 docker compose up --build -d
-```
-
-Check the public API and consumer:
-
-```sh
-curl http://localhost:3000/healthz
-curl http://localhost:3001/status
-```
-
-The seeded fingerprint is printed by the rotator without printing the key. The reproducible demo command in the project handoff uses `docker compose exec rotator` so the rotator stays internal-only.
-
-For the internal-only demo, read the seeded fingerprint from the secret-free registry and call the rotator from inside its container:
-
-```sh
-SEED_FINGERPRINT="$(docker compose exec -T rotator node --input-type=module -e "const fs = await import('node:fs/promises'); const r = JSON.parse(await fs.readFile('/data/registry.json', 'utf8')); console.log(r.credentials['orders-api'].keys.find(k => k.state === 'active').fingerprint)")"
-docker compose exec -T -e "SEED_FINGERPRINT=$SEED_FINGERPRINT" rotator node --input-type=module -e "const r = await fetch('http://127.0.0.1:3002/v1/rotator/rotate', { method: 'POST', headers: { Authorization: 'Bearer ' + process.env.ROTATOR_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify({ credential_id: 'orders-api', leaked_fingerprint: process.env.SEED_FINGERPRINT }) }); console.log(await r.text())"
-curl http://localhost:3001/status
-```
-
-The command returns the replacement fingerprint and step results. It never returns the raw key. The rotator has no published host port.
-
-Stop the stack with:
-
-```sh
+curl -fsS http://localhost:3000/healthz
+curl -fsS http://localhost:3001/status
 docker compose down -v
 ```
 
-## Local HTTPS proxy
+For the guarded live demonstration, follow [docs/DEMO_RUN.md](docs/DEMO_RUN.md). For GitLab flow setup, see [docs/FLOW_SETUP.md](docs/FLOW_SETUP.md). For VPS setup and deployment, see [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md).
 
-The deployment kit includes a local Caddy build with the rate-limit module. It uses `mistakeys.localhost` and Caddy's local certificate authority, so `curl` needs `-k` unless you install Caddy's local CA in your trust store.
+## Limitations and next steps
 
-```sh
-cp deploy/.env.local.example deploy/.env.local
-docker compose -p mistakeys-local-https --env-file deploy/.env.local \
-  -f deploy/docker-compose.yml \
-  -f deploy/docker-compose.local-https.yml \
-  up --build -d
-curl -k https://mistakeys.localhost:8443/healthz
-docker compose -p mistakeys-local-https --env-file deploy/.env.local \
-  -f deploy/docker-compose.yml \
-  -f deploy/docker-compose.local-https.yml \
-  down -v
-```
+- The demonstration supports one credential type, `orders-api`, and one consumer.
+- It is a focused control plane, not a general secret manager or provider adapter.
+- Credential history is not rewritten by design. A leaked value remains in demo history, so demo branches must never be merged into `main` and public release requires deleting demo refs and rerunning the secret audit.
+- Next: record the final demo video, finish the Devpost write-up, make the repository public after the final audit, and submit.
 
-## CI/CD and VPS deployment
+## License
 
-`.gitlab-ci.yml` runs typecheck and unit tests, a redacted custom gitleaks scan, a fixture assertion job, image builds, and a protected-branch deployment. Images are tagged by commit SHA. The deploy job connects through a forced SSH command and keeps a local `previous` tag for one-command rollback.
-
-The leak scan job is named `mistakeys_leak_scan`. It fails on a finding and uploads `leak-report.json`, which contains only file path, line, commit SHA, rule ID, and a SHA-256 fingerprint. GitLab's standard Secret Detection job is included with `allow_failure: true`.
-
-Follow [docs/SERVER_SETUP.md](docs/SERVER_SETUP.md) for the Ubuntu VPS setup, protected CI/CD variables, HTTPS checks, and rollback command.
-
-## Verification
-
-```sh
-npm test
-npm run typecheck
-npm run build
-```
-
-The project does not make production safety claims. It demonstrates bounded local test behavior, secret-free audit evidence, a verified replacement flow, and a reproducible deployment path. GitLab CI, the VPS, DNS, public HTTPS, and the future Duo agent remain environment-dependent until checked in their real environments.
+[MIT](LICENSE)
