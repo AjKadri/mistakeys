@@ -3,6 +3,31 @@ set -eu
 
 original_command=${SSH_ORIGINAL_COMMAND:-}
 deployctl=/opt/mistakeys/deploy/deployctl.sh
+compose_file=/opt/mistakeys/deploy/docker-compose.yml
+runtime_file=/etc/mistakeys/runtime.env
+
+refuse_demo_key() {
+  echo 'demo-key unavailable' >&2
+  exit 64
+}
+
+if [ "$original_command" = 'demo-key' ]; then
+  [ -r "$runtime_file" ] || refuse_demo_key
+  demo_mode=$(awk -F= '$1 == "MISTAKEYS_DEMO_MODE" { print $2; exit }' "$runtime_file")
+  [ "$demo_mode" = '1' ] || refuse_demo_key
+
+  key=$(docker compose --env-file "$runtime_file" -f "$compose_file" exec -T consumer sh -c 'cat "$CONSUMER_KEY_PATH"') || refuse_demo_key
+  case "$key" in
+    mk_live_????????????????????????????????) ;;
+    *) refuse_demo_key ;;
+  esac
+
+  fingerprint=$(printf '%s' "$key" | sha256sum | awk '{print "sha256:" substr($1, 1, 12)}')
+  logger -t mistakeys-demo-key "fingerprint=$fingerprint" || refuse_demo_key
+  printf '%s\n' "$key"
+  unset key
+  exit 0
+fi
 
 case "$original_command" in
   rollback)

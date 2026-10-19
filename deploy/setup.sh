@@ -119,6 +119,7 @@ REGISTRY_IMAGE=registry.gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43
 REGISTRY_USER=replace-with-gitlab-deploy-token-username
 REGISTRY_PASSWORD=replace-with-gitlab-deploy-token
 ROTATOR_TOKEN=replace-with-a-long-random-rotator-token
+MISTAKEYS_DEMO_MODE=0
 CADDY_BIND_ADDRESS=127.0.0.1
 HTTP_PORT=18080
 HTTPS_PORT=18443

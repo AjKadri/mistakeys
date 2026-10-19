@@ -22,6 +22,7 @@ Last updated: 2026-10-19
 - Removed flow inputs and targeted `main` directly. Added local-JWKS tests for valid, wrong-audience, wrong-project, expired, and bad-signature tokens.
 - Added a non-internal egress network for the rotator's GitLab JWKS fetches, one-shot safe JWKS failure logging, and constant-time static-token comparison. API and consumer network memberships remain unchanged.
 - Hardened the CI leak gate so `mistakeys_leak_scan` fails on either a Gitleaks finding or a non-empty safe report, while still publishing the redacted report as an artifact.
+- Added a DEMO_MODE-gated forced `demo-key` command for the restricted deploy account and changed the demo script to create a leak branch from `origin/main` using the live consumer key without printing it.
 
 ## Verified locally in this milestone
 

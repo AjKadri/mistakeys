@@ -2,30 +2,32 @@
 set -eu
 
 remote=${MISTAKEYS_DEMO_REMOTE:-origin}
-compose_file=${MISTAKEYS_COMPOSE_FILE:-docker-compose.yml}
 demo_file=${MISTAKEYS_DEMO_FILE:-demo/leaked-orders-key.txt}
 branch=${MISTAKEYS_DEMO_BRANCH:-demo/leak-$(date -u +%Y%m%d-%H%M%S)}
-
-if ! command -v docker >/dev/null 2>&1; then
-  echo 'docker is required' >&2
-  exit 1
-fi
 
 if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   echo 'run this script from a Git checkout' >&2
   exit 1
 fi
 
-if ! docker compose -f "$compose_file" ps --services --filter status=running | grep -qx rotator; then
-  echo 'the local rotator container is not running; start the local Compose stack first' >&2
+if [ -n "$(git status --porcelain)" ]; then
+  echo 'run this script from a clean Git checkout' >&2
   exit 1
 fi
 
-key=$(docker compose -f "$compose_file" exec -T rotator sh -c 'cat /secrets/orders-api.key')
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+: "${MISTAKEYS_VPS_HOST:?MISTAKEYS_VPS_HOST is required}"
+
+git fetch "$remote" main >/dev/null 2>&1
+git switch -c "$branch" "$remote/main" >/dev/null 2>&1
+
+key=$(ssh "mistakeys-deploy@$MISTAKEYS_VPS_HOST" demo-key)
 case "$key" in
   mk_live_????????????????????????????????) ;;
   *)
-    echo 'the local rotator did not return a demo-format application key' >&2
+    echo 'the live rotator did not return a demo-format application key' >&2
     exit 1
     ;;
 esac
@@ -37,9 +39,8 @@ umask 077
 printf 'MISTAKEYS_TEST_KEY=%s\n' "$key" > "$demo_file"
 unset key
 
-git switch -c "$branch"
 git add "$demo_file"
-git commit -m 'demo: intentionally leak a test credential'
-git push --set-upstream "$remote" "$branch"
+git commit -m 'demo: intentionally leak a production credential' >/dev/null 2>&1
+git push --set-upstream "$remote" "$branch" >/dev/null 2>&1
 
-printf 'pushed demo branch %s with fingerprint %s\n' "$branch" "$fingerprint"
+printf 'branch=%s fingerprint=%s\n' "$branch" "$fingerprint"

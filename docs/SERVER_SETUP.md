@@ -63,6 +63,7 @@ REGISTRY_IMAGE=registry.gitlab.com/gitlab-ai-hackathon/transcend-october-2026/43
 REGISTRY_USER=the-deploy-token-username
 REGISTRY_PASSWORD=the-deploy-token-value
 ROTATOR_TOKEN=your-long-random-rotator-token
+MISTAKEYS_DEMO_MODE=0
 GITLAB_PROJECT_PATH=gitlab-ai-hackathon/transcend-october-2026/43339651/showcase
 CADDY_BIND_ADDRESS=127.0.0.1
 HTTP_PORT=18080
@@ -71,6 +72,8 @@ SITE_ADDRESS=:80
 ```
 
 Use a password manager or a local command to generate `ROTATOR_TOKEN`. Do not use the placeholder value. `GITLAB_PROJECT_PATH` documents the OIDC verifier's expected project and may be left at its default. The file must remain owned by `root:mistakeys-deploy` with mode `0640`.
+
+Keep `MISTAKEYS_DEMO_MODE=0` or omit it during normal operation. Set it to `1` only for the short live demo that intentionally exports the current `orders-api` consumer key through the restricted `demo-key` forced command. Set it back to `0` immediately after the demo. The command logs only the key fingerprint and refuses all other runtime values.
 
 ## 4. Add the loopback route to the existing host Caddy
 

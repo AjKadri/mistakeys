@@ -61,11 +61,17 @@ The existing public proxy is already configured at `https://mistakeys.ajkadri.de
 The rotator must run the code containing the GitLab ID-token verifier before the flow test.
 
 1. Commit the reviewed changes from section 1.
-2. Copy the updated public deploy kit to the VPS because the CI deploy job promotes images but does not copy the mounted Caddyfile:
+2. Copy the updated public deploy kit to the VPS. The CI deploy job promotes images but does not copy the mounted Caddyfile or install the forced SSH command:
 
    ```sh
    cd /Users/admin/Documents/Hackathons/mistakeys
-   scp -r deploy/. root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-deploy/
+   scp -P "${VPS_SSH_PORT:-22}" -r deploy/. root@"$MISTAKEYS_VPS_HOST":/root/mistakeys-deploy/
+   ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'cp -a /root/mistakeys-deploy/. /opt/mistakeys/deploy/'
+   ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'chown -R root:mistakeys-deploy /opt/mistakeys/deploy'
+   ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'find /opt/mistakeys/deploy -type d -exec chmod 0750 {} \;'
+   ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'find /opt/mistakeys/deploy -type f -exec chmod 0640 {} \;'
+   ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'chmod 0750 /opt/mistakeys/deploy/setup.sh /opt/mistakeys/deploy/deployctl.sh /opt/mistakeys/deploy/mistakeys-deploy-command'
+   ssh -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'install -o root -g root -m 0755 /opt/mistakeys/deploy/mistakeys-deploy-command /usr/local/libexec/mistakeys-deploy-command'
    ```
 
 3. Push `main` after the copy completes:
@@ -78,7 +84,27 @@ The rotator must run the code containing the GitLab ID-token verifier before the
 5. Confirm the public health endpoint is healthy and manually confirm the existing static bearer path still works. Keep the manual token in a password manager or local shell only.
 6. Only after deployment succeeds, run the first cheap flow test from section 4.
 
-## 6. Disable the old flow
+## 6. Live production-key demo
+
+The full demo intentionally leaks the current `orders-api` consumer key. This is a deliberate test fixture, not a normal credential workflow. The `demo-key` forced SSH command refuses unless `/etc/mistakeys/runtime.env` contains exactly `MISTAKEYS_DEMO_MODE=1`. When allowed, it reads the key only from the running consumer container, logs one fingerprint-only line, and sends the key over the restricted deploy SSH connection to `scripts/demo-leak.sh`.
+
+The script writes the key to a demo-only branch so the leak scanner produces a real finding. The recovery agent then calls the rotator, updates the consumer to a replacement that never leaves the VPS, verifies the replacement, and revokes the leaked production key. The intentional exposure lasts only for the short recovery run, normally seconds; use the recorded overlap and HTTP results as the evidence. The flow sees fingerprints and statuses, never the replacement key.
+
+Before the live demo, set the flag directly on the VPS and verify that the deploy key is available to the local `ssh` command:
+
+```sh
+ssh -t -p "${VPS_SSH_PORT:-22}" root@"$MISTAKEYS_VPS_HOST" 'vi /etc/mistakeys/runtime.env'
+# Set MISTAKEYS_DEMO_MODE=1. Keep it out of Git and chat.
+./scripts/demo-leak.sh
+```
+
+Immediately after the demo, set `MISTAKEYS_DEMO_MODE=0` or remove the line. Do not leave live-key export enabled.
+
+The expected first run is one recovery session, a successful status and rotation, a consumer HTTP 200 with the replacement, the leaked fingerprint returning HTTP 401, one cleanup merge request, and one incident issue containing fingerprints, timestamps, and links only. The original demo branch retains the leaked value in history by design; the cleanup merge request must warn about that.
+
+Repeat the same failed pipeline only after the first run is complete. The second session must report `already_handled` and create no second rotation, issue, branch, or merge request.
+
+## 7. Disable the old flow
 
 After the new flow has been saved, go to `AI` > `Flows` and find the old flow named `test flow`.
 
@@ -88,7 +114,7 @@ After the new flow has been saved, go to `AI` > `Flows` and find the old flow na
 
 Do this before the first failed-pipeline test. The old flow is not changed by this repository commit, and its current GitLab UI state is not visible from this workspace.
 
-## 7. Cheapest test sequence
+## 8. Cheapest test sequence
 
 Run these tests in order and stop at the first failure:
 
@@ -102,8 +128,8 @@ Run these tests in order and stop at the first failure:
 2. In GitLab, save the flow and confirm it shows as valid. This costs no GitLab Credits.
 3. After the rotator redeploy, run the controlled `mistakeys_leak_scan` failure described in section 4. This is the first live test because it checks ID-token visibility inside `run_command` before any rotation.
 4. If that passes, trigger one failed pipeline where the failed job is not named `mistakeys_leak_scan`. Confirm one agent session starts, then confirm it creates no issue, branch, note, or merge request. This tests the gatekeeper at the lowest live cost. The earlier live test consumed 1.26 GitLab Credits, so budget about that amount for a simple session and measure the actual result in `AI` > `Sessions` or the Credits dashboard.
-5. Run a controlled leak-scan test with a demo-only key. Confirm the flow can retrieve `leak-report.json`, reach the public status endpoint, and recognize the fingerprint. If the fingerprint is not registered in the deployed rotator, the expected safe result is a `needs human` incident issue and no cleanup MR.
-6. Only after the previous checks pass, run the full demo script. Confirm the cleanup MR contains no raw key, the MR warns that git history still contains the old value, and the incident issue contains fingerprints and step timestamps only.
+5. Run the live production-key demo from section 6. Confirm the flow can retrieve `leak-report.json`, reach the public status endpoint, rotate the registered fingerprint, and recognize the replacement result.
+6. Confirm the cleanup MR contains no raw key, the MR warns that git history still contains the old value, and the incident issue contains fingerprints and step timestamps only.
 7. Repeat the same failed pipeline or fingerprint only after the first run is complete. The expected rotator response is `already_handled`; the flow should report that result and make no second MR or issue.
 
 ## What remains unverified
