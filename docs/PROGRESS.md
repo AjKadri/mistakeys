@@ -2,81 +2,62 @@
 
 Last updated: 2026-10-19
 
-## Done
+## Verified
 
-- Built the TypeScript, Node 22, Hono services: authenticated API, internal rotator, and polling consumer.
-- Added atomic secret-free registry and audit storage, seeded `orders-api`, and tests for authentication, secret non-disclosure, idempotence, revoked-state protection, post-revoke failure escalation, overlap reporting, and consumer key rereads.
-- Added Dockerfiles, local Compose, MIT license, environment example, and minimal service documentation.
-- Verified the full local Docker rotation demo. The old key returned HTTP 401 after rotation and the consumer continued returning HTTP 200 with the replacement fingerprint.
-- Added `.gitleaks.toml` with the custom `mistakeys-application-key` rule for `mk_live_` keys and redacted safe-report tooling.
-- Added GitLab CI stages for tests, the exact `mistakeys_leak_scan` job, a generated fixture failure assertion, image builds tagged by commit SHA, and protected default-branch deployment.
-- Included GitLab's standard Secret Detection template with `allow_failure: true`.
-- Added the VPS kit: official Docker apt setup, unprivileged forced-command deploy account, Caddy HTTPS proxy, private rotator network, rate-limited bearer-protected `/rotator/*`, current/previous image tags, and rollback.
-- Adapted the VPS kit for the existing host Caddy: public ports 80 and 443 remain with the existing service, while Mistakeys Caddy binds only to loopback port 18080. The setup script does not start the application or alter existing sites.
-- Added [docs/SERVER_SETUP.md](SERVER_SETUP.md) with exact VPS, SSH key, GitLab variable, HTTPS, and rollback instructions.
-- Completed a pre-publication secret audit over the full reachable history of the locally available refs. Both default Gitleaks rules and the custom `mistakeys-application-key` rule found zero findings. No credential rotation or history rewrite is indicated by this audit.
-- Hardened `.gitignore` for runtime `.env` files, private key and certificate files, and registry or audit data files.
-- Removed the image build's `apk add su-exec` dependency after repeated GitLab shared-runner stalls at that step. The entrypoint now uses BusyBox `su` already present in `node:22-alpine` while retaining non-root execution and volume initialization.
-- Added the reviewed-but-not-live-verified GitLab Duo recovery flow at [flows/mistakeys-recovery.yaml](../flows/mistakeys-recovery.yaml), the flow runner network policy at [`.gitlab/duo/agent-config.yml`](../.gitlab/duo/agent-config.yml), exact setup/test notes at [docs/FLOW_SETUP.md](FLOW_SETUP.md), and the local demo branch script at [scripts/demo-leak.sh](../scripts/demo-leak.sh).
-- Replaced the flow's static-token setup check with a GitLab OIDC ID-token declaration, added cached JWKS-backed RS256 verification with configurable project-path validation, and kept the static bearer token for manual use.
-- Removed flow inputs and targeted `main` directly. Added local-JWKS tests for valid, wrong-audience, wrong-project, expired, and bad-signature tokens.
-- Added a non-internal egress network for the rotator's GitLab JWKS fetches, one-shot safe JWKS failure logging, and constant-time static-token comparison. API and consumer network memberships remain unchanged.
-- Hardened the CI leak gate so `mistakeys_leak_scan` fails on either a Gitleaks finding or a non-empty safe report, while still publishing the redacted report as an artifact.
-- Added a DEMO_MODE-gated forced `demo-key` command for the restricted deploy account and changed the demo script to create a leak branch from `origin/main` using the live consumer key without printing it.
+### Product and local implementation
 
-## Verified locally in this milestone
+- TypeScript, Node 22, Hono services are implemented: authenticated API, internal rotator, and polling consumer.
+- Registry and audit storage are atomic and secret-free. The local tests cover authentication, non-disclosure, idempotence, revoked-state protection, post-revoke failure escalation, overlap reporting, and consumer key rereads.
+- Dockerfiles, local Compose, MIT licensing, environment templates, VPS deployment kit, Caddy HTTPS proxy, rollback, and protected deployment SSH commands are implemented.
+- The API, rotator, and consumer use the intended private network memberships. The rotator also has a separate non-internal egress network for GitLab JWKS access, with no published rotator port.
+- The custom `mistakeys-application-key` Gitleaks rule and fingerprint-only report tooling are implemented.
+- The CI leak gate fails when either Gitleaks detects a finding or the safe report is non-empty, while publishing only the redacted report artifact.
+- The recovery flow uses a GitLab OIDC ID token, cached GitLab JWKS verification, exact issuer, audience, expiration, and project-path checks, and constant-time comparison for the manual static token.
+- The rotator promotes a verified replacement to `active` before revoking the old key. The rotation record now includes the activation step.
+- The forced `demo-key` command is gated by `MISTAKEYS_DEMO_MODE=1`, reads only from the running consumer, logs a fingerprint only, and refuses when the flag is disabled.
+- `scripts/demo-leak.sh` retrieves the live key through the restricted SSH command, creates its branch from `origin/main`, never prints the key, and prints only the branch and fingerprint.
+
+### Local verification
 
 - `npm test`: 9 tests passed.
 - `npm run typecheck`: passed.
 - `npm run build`: passed.
-- Gitleaks v8.30.1 checksum-verified binary: generated fixture scan failed as expected, safe report assertion passed, and the repository scan found no leaks.
-- ShellCheck v0.10.0 container: all deployment and leak-scan scripts passed.
-- Caddy v2.11.7 with the pinned `caddy-ratelimit` v0.1.0 module: Caddyfile validation passed and local HTTPS Compose returned health HTTP 200, unauthenticated API HTTP 401, unauthenticated rotator HTTP 401, and an authenticated safe rotator status response.
-- The loopback-safe Compose configuration parses locally. The local HTTPS rerun after this VPS adaptation passed: health HTTP 200, seeded consumer HTTP 200, old key HTTP 401 after rotation, and replacement consumer HTTP 200.
-- ShellCheck v0.10.0 passed again after the deployment adjustment, and the generated gitleaks fixture still failed safely with a fingerprint-only report.
-- Gitleaks v8.30.1 scanned all 23 commits reachable from `main`, `origin/main`, and `origin/HEAD` with `--log-opts=--all`; default rules and the custom rule both exited 0 with zero findings. A separate complete-key search found zero `mk_live_[A-Za-z0-9]{32}` occurrences.
-- History checks found no private-key material, VPS IP, GitLab or API token prefixes, bearer literals, tracked runtime `.env` files, registry or audit data files, or raw key material. The only tracked environment files are `.env.example` and `deploy/.env.local.example`, both templates.
-- The root `LICENSE` is the MIT License. Runtime registry, audit, and consumer-key data are Docker volumes and are not repository files.
-- `npm test`, `npm run typecheck`, `npm run build`, and ShellCheck passed after the entrypoint change. A local Docker build completed successfully, and an image smoke test confirmed UID 100 execution, environment preservation, and writes to `/data` and `/secrets`.
-- The GitLab ID-token tests passed with a local JWKS server. The test suite currently reports 9 passing tests, including the one-shot JWKS failure callback, and `npm run typecheck` passes after the verifier change.
-- The native Gitleaks fixture returned status 1 with one fingerprint-only finding, the intentional demo tree returned status 1, and a clean `origin/main` tree returned status 0 with zero findings.
+- Gitleaks fixture and intentional demo scans failed with fingerprint-only findings as expected. A clean `origin/main` scan passed with zero findings.
+- Shell syntax, ShellCheck, YAML parsing, Docker image smoke checks, and local HTTPS routing checks passed.
+- Local rotation checks confirmed old-key HTTP `401`, replacement-key HTTP `200`, consumer HTTP `200`, and idempotent repeat behavior.
 
-## Verified in GitLab and on the VPS
+### GitLab, flow, and VPS verification
 
-- User-provided screenshot evidence shows pipeline `#2960959972` on `main` for commit `8c3bb489` passed in 2 minutes 58 seconds with all four visible stage checks green. This verifies the committed CI pipeline, not flow execution or live JWKS access.
-- User-provided GitLab evidence shows pipeline `#2957137523` for commit `de7b353` passed all six jobs: `secret_detection`, `test`, `mistakeys_leak_scan`, `mistakeys_leak_scan_fixture`, `build_images`, and `deploy_production`.
-- User-provided live checks returned HTTPS health `200`, unauthenticated orders `401`, unauthenticated rotator `401`, and consumer `last_result: 200` with fingerprint `sha256:529176425f23`.
-- The real CI build and deploy path and the first public service checks are verified. No raw key was used in the chat or HTTP responses shown here.
-- User-provided live rotation evidence shows `sha256:529176425f23` rotated to `sha256:87fd2bd64e9a` with overlap `0.023` seconds, new-key HTTP 200, old-key HTTP 401, and consumer HTTP 200 after the update. Repeating the same leaked fingerprint returned `already_handled` with the earlier result.
-- User-provided deploy status shows current SHA `de7b35361adfe7a50dec6727639f8da91debb66c`, API and rotator healthy, consumer running, and Caddy bound only to loopback ports `18080` and `18443`. `previous_sha` is empty because this is the first deployment.
-- User-provided second-deployment status shows current SHA `10e64530cf1d761fdbe1a0b3b0a7f808ecba1795` and previous SHA `de7b35361adfe7a50dec6727639f8da91debb66c`, with API and rotator healthy and the consumer running.
-- User-provided rollback evidence shows the deployment returned to `de7b35361adfe7a50dec6727639f8da91debb66c`, retained `10e64530cf1d761fdbe1a0b3b0a7f808ecba1795` as `previous_sha`, kept API and rotator healthy, and preserved public HTTPS health `200`.
-- User-provided public rate-limit evidence returned 30 HTTP 401 responses followed by HTTP 429 on the 31st unauthenticated rotator request.
-- User-provided post-rollback consumer evidence returned `last_result: 200` with replacement fingerprint `sha256:87fd2bd64e9a`.
-- User-provided GitLab evidence shows final pipeline `#295721880` for commit `4a03f3e2` passed all stage jobs, including the deployment job.
-- User-provided GitLab evidence shows pipeline `#2960839313` for commit `4be7a65` passed all stages in 2 minutes 43 seconds after replacing the stalled `su-exec` package install. The image build and deployment jobs passed.
-- User-provided post-deployment checks returned public HTTPS health `200`; VPS status shows API and rotator healthy, consumer running, current SHA `4be7a65d460a507417b91bfd574c21da30227cc3`, and previous SHA `4db44e9293159ec362f4045075ed83744006f910`.
+- GitLab OIDC authentication and GitLab JWKS egress were verified by flow session `9658871`. The flow reached the rotator, authenticated successfully, and safely stopped because the test fingerprint was unregistered.
+- The non-leak gatekeeper was verified by flow session `9665909`. A failed job other than the exact `mistakeys_leak_scan` job was ignored with no issue, branch, commit, or merge request.
+- The live demo retrieved the production consumer key without printing it. Its safe fingerprint was `sha256:87fd2bd64e9a`.
+- Successful live rotation was verified by flow session `9677029`, pipeline `2962697953`, and the exact failed job `mistakeys_leak_scan`.
+- The successful rotation changed `sha256:87fd2bd64e9a` to replacement fingerprint `sha256:93a444b2e0f8`.
+- All six rotation steps passed: issue replacement, update consumer, verify new key with HTTP `200`, activate replacement, revoke old key, and verify old key with HTTP `401`.
+- The measured old/new overlap was `0.021` seconds and did not exceed the configured limit. The consumer continued returning HTTP `200`.
+- The successful session created cleanup MR `!1` and incident issue `#9` with fingerprint-only evidence.
+- Idempotence was verified by flow session `9677770`, pipeline `2962758043`. The rotator returned HTTP `200` with `already_handled`, and the flow created no new issue, branch, commit, or merge request.
+- The leak-scan pipelines failed as designed because the intentional finding was detected. The recovery sessions, not a passing leak-scan pipeline, are the success signal for this demo.
+- The default branch contains the activation fix in commit `da47828` and the direct running-container demo-key fix in commit `feeb05e`.
 
-## Next
+## MR and branch safety decision
 
-- Validate the custom flow in GitLab AI > Flows and enable only the Pipeline events: Failed trigger.
-- Redeploy the rotator containing the ID-token verifier before any flow test.
-- Run the first cheap exact `mistakeys_leak_scan` test to verify ID-token visibility inside `run_command` without printing the token.
-- Disable the old `test flow` trigger before running the first live test.
-- Run the cheapest non-leak failure test, then the registered-fingerprint demo and idempotence repeat.
+MR `!1` must be closed, not merged. Session `9677029` explicitly records that its cleanup branch was created from the demo branch and that the old value remains in git history. Merging it into `main` would bring the intentional leak commit into the default branch and could make main pipelines fail and retrigger the recovery flow.
 
-## Still unverified
+For future demos, use one of these safe patterns:
 
-- GitLab Duo agent behavior and hackathon submission requirements.
-- The consumer's authenticated polling result has not been independently rechecked after this deployment. The container is running and the prior consumer smoke checks passed.
-- GitLab server-side refs that are not present in the local clone. The audit covered every commit reachable from the locally available refs: `main`, `origin/main`, and `origin/HEAD`; no local tags or other branches were present.
-- Ubuntu 26.04 package availability from Docker's official repository on the target VPS.
-- The VPS manager reported Docker installed, SSH password and keyboard-interactive login disabled, and UFW active for 22, 80, and 443. These host-side reports have not been independently verified from this workspace.
-- The current deploy directory has been recopied to the VPS, and the VPS runtime file now reports non-empty `REGISTRY_USER`, `REGISTRY_PASSWORD`, and `ROTATOR_TOKEN` values. Secret contents remain unverified by design. A direct VPS `docker login` using those values returned `Login Succeeded`.
-- The existing system Caddy is active. The `mistakeys.ajkadri.dev` reverse proxy to `127.0.0.1:18080` was added, validated successfully, and reloaded. Public HTTPS health and protected-route checks now pass. The Caddy formatter warning remains cosmetic.
-- The restricted VPS deploy SSH path is now verified: the deploy key is accepted and `status` returns the deployed current and previous SHAs. The account shell was changed from `/usr/sbin/nologin` to `/bin/sh` so OpenSSH can run the authorized forced command. `deploy/setup.sh` now applies that shell idempotently for both new and existing accounts.
-- The Duo custom-flow YAML registry validation, actual flow tool parameter schemas, service-account permissions, trigger payload shape in this project, runner reachability to `mistakeys.ajkadri.dev`, and visibility of `MISTAKEYS_ID_TOKEN` to `run_command` inside the agent sandbox remain unverified. The first exact leak-scan flow test is the planned visibility check.
-- `scripts/demo-leak.sh` intentionally reads the active key from a local Docker Compose rotator for a demo-only local stack. It does not obtain a production key from the public rotator and must not be used to claim that the live deployment and local demo registry share a fingerprint.
+- Target the cleanup MR at the demo branch and never merge that demo branch into `main`.
+- Or create the cleanup branch from `origin/main` and apply only the safe cleanup change, without the demo branch as an ancestor.
+
+The demo branch and any cleanup branch descended from it should be deleted after the evidence is captured. Deleting the branch does not erase its historical value, so the repository must remain private until all leaked demo refs are gone and a fresh all-ref secret audit passes.
+
+## Remaining before submission
+
+- Produce the final demo video.
+- Finish the judge-facing README.
+- Write the Devpost submission.
+- Delete the intentional demo refs, rerun the secret audit, and make the repository public.
+- Submit the project.
 
 ## Working rule
 
